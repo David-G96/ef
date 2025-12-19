@@ -1,0 +1,12 @@
+[package]
+name = "ef"
+version = "0.1.0"
+description = "The simplest way to sort your items."
+edition = "2024"
+
+[dependencies]
+color-eyre = "0.6.5"
+crossterm = "0.29.0"
+indexmap = "2.12.1"
+ratatui = "0.29.0"
+uuid = { version = "1.19.0", features = ["v7"] }
