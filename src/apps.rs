@@ -1,5 +1,5 @@
 use std::{
-    env, fs, io,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -10,7 +10,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::Stylize,
     symbols::border,
-    text::{Line, Text},
+    text::Line,
     widgets::{Block, Paragraph, Widget},
 };
 use uuid::{ContextV7, Timestamp, Uuid};
@@ -87,10 +87,19 @@ impl App {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Up => {
-                self.cursor.cursor_col = self.cursor.cursor_col.map(|idx| idx + 1);
+                self.cursor.cursor_col = self
+                    .cursor
+                    .cursor_col
+                    .map(|idx| if idx > 0 { idx - 1 } else { idx });
             }
             KeyCode::Down => {
-                self.cursor.cursor_col = self.cursor.cursor_col.map(|idx| idx + 1);
+                self.cursor.cursor_col = self.cursor.cursor_col.map(|idx| {
+                    if idx < self.manager.get_list(self.cursor.cursor_pos).len() - 1 {
+                        idx + 1
+                    } else {
+                        idx
+                    }
+                });
             }
             // ctrl+z undo
             KeyCode::Char('z') => {
@@ -112,6 +121,24 @@ impl App {
     fn exit(&mut self) {
         self.exit = true;
     }
+
+    fn render_list<'a>(
+        &'a self,
+        list_type: ListType,
+        items: &'a std::collections::VecDeque<FileItem>,
+    ) -> Vec<Line<'a>> {
+        items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let mut line = item.colorize();
+                if self.cursor.cursor_pos == list_type && self.cursor.cursor_col == Some(i) {
+                    line = line.reversed();
+                }
+                line
+            })
+            .collect::<Vec<Line>>()
+    }
 }
 
 impl Widget for &App {
@@ -119,9 +146,9 @@ impl Widget for &App {
         let title = Line::from(self.curr_path.to_string_lossy().to_string().blue().bold());
         let instructions = Line::from(vec![
             " Move Left ".into(),
-            "<Left>".blue().bold(),
+            "<LEFT>".blue().bold(),
             " Move Right ".into(),
-            "<Right>".blue().bold(),
+            "<RIGHT>".blue().bold(),
             " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
@@ -141,32 +168,17 @@ impl Widget for &App {
         ]);
         let [left_area, mid_area, right_area] = columns.areas(inner_area);
 
-        let left_items: Vec<Line> = self
-            .manager
-            .left
-            .iter()
-            .map(|item| item.colorize())
-            .collect();
+        let left_items = self.render_list(ListType::Left, &self.manager.left);
         Paragraph::new(left_items)
             .block(Block::bordered().title("Left"))
             .render(left_area, buf);
 
-        let pending_items: Vec<Line> = self
-            .manager
-            .pending
-            .iter()
-            .map(|item| item.colorize())
-            .collect();
+        let pending_items = self.render_list(ListType::Pending, &self.manager.pending);
         Paragraph::new(pending_items)
-            .block(Block::bordered().title("Unselected"))
+            .block(Block::bordered().title("Pending"))
             .render(mid_area, buf);
 
-        let right_items: Vec<Line> = self
-            .manager
-            .right
-            .iter()
-            .map(|item| item.colorize())
-            .collect();
+        let right_items = self.render_list(ListType::Right, &self.manager.right);
         Paragraph::new(right_items)
             .block(Block::bordered().title("Right"))
             .render(right_area, buf);

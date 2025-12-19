@@ -1,28 +1,24 @@
 //! 这是操作底层的核心，用来记录、撤销、执行操作
 
 use color_eyre::eyre::{Ok, Result};
-use core::panic;
 use ratatui::style::Stylize;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::fs::DirEntry;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, PartialEq, Copy,Default)]
 #[non_exhaustive]
 pub enum ListType {
     Left,
+    #[default]
     Pending,
     Right,
     // 如果一个元素在结束时依旧是pending，那么就作为未修改
     // Unmodified,
 }
 
-impl Default for ListType {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
+
 
 #[derive(Debug, Clone)]
 pub struct FileItem {
@@ -47,12 +43,9 @@ impl FileItem {
             is_dir: dir.file_type()?.is_dir(),
         })
     }
-    pub fn colorize(&self) -> ratatui::text::Line {
+    pub fn colorize(&'_ self) -> ratatui::text::Line<'_> {
         if self.is_dir {
-            ratatui::text::Line::from(vec![
-                self.display_name[..self.display_name.len() - 1].blue(),
-                "/".into(),
-            ])
+            ratatui::text::Line::from(self.display_name.clone().blue())
         } else {
             ratatui::text::Line::from(self.display_name.clone())
         }
@@ -104,7 +97,7 @@ impl CommandManager {
     pub fn new(initial_pending: impl Into<VecDeque<FileItem>>) -> Self {
         Self {
             left: VecDeque::new(),
-            pending: VecDeque::from(initial_pending.into()),
+            pending:initial_pending.into(),
             right: VecDeque::new(),
             history: Vec::new(),
             top: 0,
@@ -112,7 +105,7 @@ impl CommandManager {
     }
 
     // 辅助函数：通过 ListType 获取对应的列表引用
-    fn get_list_mut(&mut self, list_type: ListType) -> &mut VecDeque<FileItem> {
+    pub fn get_list_mut(&mut self, list_type: ListType) -> &mut VecDeque<FileItem> {
         match list_type {
             ListType::Left => &mut self.left,
             ListType::Pending => &mut self.pending,
@@ -120,7 +113,7 @@ impl CommandManager {
         }
     }
 
-    fn get_list(&self, list_type: ListType) -> &VecDeque<FileItem> {
+    pub fn get_list(&self, list_type: ListType) -> &VecDeque<FileItem> {
         match list_type {
             ListType::Left => &self.left,
             ListType::Pending => &self.pending,
@@ -201,9 +194,9 @@ impl CommandManager {
                     source_list.insert(from_index, item);
                 }
             }
-            // undo删除操作似乎不需要任何操作
+            // undo删除操作
             Command::Delete {
-                item_id,
+                item_id: _,
                 from_list,
                 from_index,
                 original_item,
@@ -235,8 +228,10 @@ impl CommandManager {
         &self.history[0..self.top]
     }
 
-    fn calculate_new_path(&self, old: &PathBuf, to: ListType) -> PathBuf {
+    fn calculate_new_path(&self, old: &Path, to: ListType) -> PathBuf {
         // 实际逻辑：根据目标列表代表的文件夹生成新路径
-        old.clone()
+        // todo!()
+        // TODO:
+        old.to_path_buf()
     }
 }
