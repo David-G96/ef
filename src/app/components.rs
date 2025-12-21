@@ -1,6 +1,6 @@
 //! Reusable components for the App
 //!
-use std::{collections::VecDeque, ffi::os_str::Display, path::Path};
+use std::{collections::VecDeque, path::Path};
 
 use ratatui::widgets::ListState;
 
@@ -224,6 +224,7 @@ impl WorkSpace {
         }
     }
 
+    #[allow(unused)]
     pub fn calculate_new_path(&self, old: &Path, to: ListType) -> PathBuf {
         // TODO:
         old.to_path_buf()

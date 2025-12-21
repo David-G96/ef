@@ -1,23 +1,21 @@
 use std::{
     collections::VecDeque,
-    env::{self, current_dir},
-    fs::{self, read_dir},
+    env::current_dir,
+    fs::{self},
     path::Path,
 };
 
-use color_eyre::Result as Res;
+use color_eyre::{Result as Res, eyre::Ok};
 use core::result::Result;
-use log::warn;
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, KeyEvent, KeyEventKind},
-    widgets::ListState,
 };
 use uuid::{ContextV7, Timestamp, Uuid};
 
 use crate::{
     app::{
-        components::{Cursor, FileItem, ScrollList, WorkSpace},
+        components::{Cursor, FileItem, WorkSpace},
         config::Config,
         events::{AppEvent, EventHandler},
     },
@@ -93,9 +91,11 @@ impl App {
                             if self.cursor.index
                                 < self.workspace.get_list_mut(self.cursor.focus).len()
                             {
+                                todo!()
                             }
                             self.cursor.index = self.cursor.index.saturating_add(1);
                         }
+                        event::KeyCode::Char('q') => return Ok(()),
                         _ => {
                             todo!()
                         }
@@ -117,7 +117,7 @@ impl App {
                 self.handle_key_event(key_event);
             }
             _ => {
-                warn!("event::read something else than key")
+                tracing::warn!("event::read something else than key")
                 // Do nothing
             }
         }
@@ -137,7 +137,9 @@ impl App {
                     .move_item(self.cursor, self.cursor.move_right());
             }
             event::KeyCode::Up => {
-                if self.cursor.index < self.workspace.get_list_mut(self.cursor.focus).len() {}
+                if self.cursor.index < self.workspace.get_list_mut(self.cursor.focus).len() {
+                    todo!()
+                }
                 self.cursor.index = self.cursor.index.saturating_add(1);
             }
             _ => {

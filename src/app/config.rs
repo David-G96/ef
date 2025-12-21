@@ -10,8 +10,6 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new() {}
-
     pub fn frame_rate(&self) -> f64 {
         self.frame_rate
     }

@@ -8,7 +8,7 @@ use std::{
 use crossterm::event::{
     self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyEventKind, MouseEvent,
 };
-use notify::{RecursiveMode, Watcher as _};
+use notify::RecursiveMode;
 use notify_debouncer_mini::{DebounceEventResult, new_debouncer};
 
 #[derive(Debug)]
@@ -108,8 +108,9 @@ impl EventHandler {
                         Ok(_events) => {
                             // 发送事件给主线程
                             let _ = tx.send(AppEvent::FileChanged);
+                            tracing::info!(" [FileMgr] file changes debounced!")
                         }
-                        Err(e) => eprintln!("Watch error: {:?}", e),
+                        Err(e) => tracing::error!("Watch error: {:?}", e),
                     },
                 )
                 .unwrap();
@@ -123,7 +124,7 @@ impl EventHandler {
                     .watch(&current_path, RecursiveMode::NonRecursive)
                     .expect("初始监听失败");
 
-                log::info!(" [FileMgr] 开始监听: {:?}", current_path);
+                tracing::info!(" [FileMgr] start monitoring: {:?}", current_path);
 
                 // 3. 进入控制循环
                 loop {
@@ -131,9 +132,10 @@ impl EventHandler {
                     match rx_file_cmd.recv() {
                         Ok(cmd) => match cmd {
                             FileCommand::ChangePath(new_path) => {
-                                println!(
+                                tracing::info!(
                                     " [FileMgr] 切换监听路径: {:?} -> {:?}",
-                                    current_path, new_path
+                                    current_path,
+                                    new_path
                                 );
 
                                 // A. 取消监听旧路径
@@ -145,7 +147,7 @@ impl EventHandler {
                                     .watcher()
                                     .watch(&new_path, RecursiveMode::NonRecursive)
                                 {
-                                    log::error!(" [FileMgr] 监听新路径失败: {:?}", e);
+                                    tracing::error!(" [FileMgr] 监听新路径失败: {:?}", e);
                                     // 如果新路径监听失败，你可以选择退回旧路径，或者保持空闲
                                 } else {
                                     // C. 只有成功 watch 后，才更新 current_path
@@ -154,7 +156,7 @@ impl EventHandler {
                             }
                         },
                         Err(_) => {
-                            log::info!(" [FileMgr] 主线程断开，文件监听线程退出");
+                            tracing::info!(" [FileMgr] 主线程断开，文件监听线程退出");
                             break;
                         }
                     }
