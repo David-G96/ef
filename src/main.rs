@@ -1,13 +1,12 @@
 mod app;
-mod apps;
-mod commands;
+// mod apps;
+// mod commands;
 mod core;
 mod tui;
 mod ui;
 
 use color_eyre::Result;
-
-use crate::apps::App;
+use log::{error, info};
 
 // 架构简述：
 // core是所有操作的核心，尤其是文件操作
@@ -16,13 +15,17 @@ use crate::apps::App;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
-    let mut term = ratatui::init();
+    // env_logger::init();
+    // info!("starting up");
+    // error!("sample error");
 
-    // let mut app = App::new()?;
-    // let res = app.run(&mut term);
-    let mut app = crate::app::App::new();
-    let res = app.run(&mut term);
+    let mut term: ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>> =
+        ratatui::init();
+
+    let mut app = crate::app::App::new()?;
+    let res = app.run_with_term(&mut term);
 
     ratatui::restore();
+    // info!("ending");
     res
 }

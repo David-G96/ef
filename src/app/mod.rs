@@ -1,4 +1,6 @@
-pub mod message;
 pub mod app;
-
+pub mod components;
+pub mod events;
 pub use app::App;
+
+pub mod config;
