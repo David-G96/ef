@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crossterm::event::{KeyEvent, MouseEvent};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum Msg {
     // UI/User input
     // UiInput(UiEvent),
@@ -39,6 +39,27 @@ pub enum Msg {
     //     path: PathBuf,
     //     result: Result<(), IoError>,
     // },
+    TaskState(TaskState),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TaskStatus {
+    Pending,
+    Processing(f32), // 进度百分比
+    Completed,
+    Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TaskState {
+    pub id: u64,
+    pub status: TaskStatus,
+}
+
+impl TaskState {
+    pub fn new(id: u64, status: TaskStatus) -> Self {
+        Self { id, status }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

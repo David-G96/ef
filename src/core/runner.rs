@@ -1,18 +1,39 @@
-use std::fmt::Debug;
+use std::{env, fmt::Debug};
 
 use crate::core::{
     cmd::Cmd,
     context::Context,
-    model::models::Models,
+    model::selector::SelectModel,
     msg::Msg,
-    services::{listener::Listener, tasks::TaskManager, watcher::Watcher},
+    services::{listener::Listener, servicer::Servicer, tasks::TaskManager, watcher::Watcher},
     traits::Model,
 };
 
+use color_eyre::{Result as Res, eyre::Ok};
+use ratatui::{DefaultTerminal, layout::Rect};
+use tokio::sync::mpsc::error::TryRecvError;
+
 #[derive(Debug, Default)]
 struct EpochEnvelope<T> {
-    pub epoch: u32,
+    /// if None, then ignore epoch and send anyway
+    pub epoch: Option<u32>,
     pub payload: T,
+}
+
+impl<T> EpochEnvelope<T> {
+    pub fn new(payload: T) -> Self {
+        Self {
+            epoch: None,
+            payload,
+        }
+    }
+
+    pub fn new_with_epoch(payload: T, epoch: u32) -> Self {
+        Self {
+            epoch: Some(epoch),
+            payload,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -36,13 +57,26 @@ impl EpochModelManager {
 
     pub fn update(&mut self, msg: EpochEnvelope<Msg>, ctx: &Context) -> EpochEnvelope<Cmd> {
         let payload = match &mut self.curr_model {
-            Some(model) if msg.epoch == self.curr_epoch => model.update(msg.payload, ctx),
+            Some(model)
+                if msg
+                    .epoch
+                    .map(|epoch| epoch == self.curr_epoch)
+                    .unwrap_or(true) =>
+            {
+                model.update(msg.payload, ctx)
+            }
             _ => Cmd::None,
         };
 
         EpochEnvelope {
             payload,
-            epoch: self.curr_epoch,
+            epoch: Some(self.curr_epoch),
+        }
+    }
+
+    pub fn render(&mut self, area: Rect, buf: &mut ratatui::prelude::Buffer) {
+        if let Some(model) = &mut self.curr_model {
+            model.render(area, buf);
         }
     }
 }
@@ -53,14 +87,71 @@ impl Debug for EpochModelManager {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Runner {
     model_manager: EpochModelManager,
-    listener: Listener,
-    watcher: Watcher,
-    task_manager: TaskManager,
-
+    servicer: Servicer,
     context: Context,
+    should_exit: bool,
 }
 
-impl Runner {}
+impl Runner {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
+        self.model_manager
+            .change_model(Box::new(SelectModel::new()?));
+        self.servicer = Servicer::new()
+            .with_listener()
+            .with_watcher(env::current_dir()?)
+            .with_ticker(4.0)
+            .with_task_manager(8);
+
+        // 1. 初始渲染：确保程序启动时用户能看到界面
+        _ = self.draw(term)?;
+
+        // 2. 阻塞式事件循环：只有收到消息（信号）时才继续执行
+        while let Some(msg) = self.servicer.recv().await {
+            // tracing::info!("[runner] recv {:#?}", msg);
+            // 处理触发循环的第一个消息
+            let mut envelope = self
+                .model_manager
+                .update(EpochEnvelope::new(msg), &self.context);
+            self.handle_cmd(envelope);
+
+            // 3. 性能优化：排空当前队列中所有积压的消息，避免连续多次重绘
+            while let Result::Ok(msg) = self.servicer.try_recv() {
+                envelope = self
+                    .model_manager
+                    .update(EpochEnvelope::new(msg), &self.context);
+                self.handle_cmd(envelope);
+            }
+
+            if self.should_exit {
+                break;
+            }
+
+            // 4. 只有在处理完所有当前消息后才重绘一次
+            _ = self.draw(term)?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_cmd(&mut self, envelope: EpochEnvelope<Cmd>) {
+        match envelope.payload {
+            Cmd::Exit => {
+                self.should_exit = true;
+            }
+            _ => {}
+        }
+        // None
+    }
+
+    fn draw(&mut self, term: &mut DefaultTerminal) -> Res<()> {
+        term.draw(|f| self.model_manager.render(f.area(), f.buffer_mut()))?;
+        Ok(())
+    }
+}

@@ -1,17 +1,6 @@
 mod core;
-// mod apps;
-// mod commands;
-// pub mod apps;
-// pub mod commands;
-// mod tui;
-// mod ui;
 
 use color_eyre::{Result, eyre::Ok};
-
-// 架构简述：
-// core是所有操作的核心，尤其是文件操作
-// app是链接ui和core的胶水层，会同时包含当前数据和状态，例如history，暂存区，left right pending和对应的liststate等
-// ui只负责渲染
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -30,16 +19,18 @@ async fn main() -> Result<()> {
 
     // let mut sys = sysinfo::System::new_all();
 
-    tracing::info!("program start...");
+    tracing::info!("[main] program start...");
     color_eyre::install()?;
 
-    let _term: ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>> =
+    let mut term: ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>> =
         ratatui::init();
 
     // let mut app = crate::core::App::new()?;
     // let res = app.run_with_term(&mut term);
+    let mut app = core::runner::Runner::new();
+    app.run(&mut term).await?;
 
-    tracing::info!("program ended");
+    tracing::info!("[main] program ended");
     ratatui::restore();
     Ok(())
 }

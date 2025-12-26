@@ -1,16 +1,19 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{collections::VecDeque, env, fs::read_dir, path::PathBuf, thread::current};
 
 use crate::core::{
     cmd::Cmd,
     model::component::{Cursor, FileItem, Focus, History, ScrollList},
     msg::Msg,
 };
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Constraint, Layout},
     style::Stylize,
     text::Line,
     widgets::{Block, Borders, Paragraph, Widget as _},
 };
+
+use color_eyre::{Result as Res, eyre::Ok};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -53,7 +56,25 @@ pub struct SelectModel {
 }
 
 impl SelectModel {
-    pub fn new(path: PathBuf, pending: VecDeque<FileItem>) -> Self {
+    pub fn new() -> Res<Self> {
+        let current_path = env::current_dir()?;
+        let mut res: VecDeque<FileItem> = VecDeque::with_capacity(8);
+        let mut id = 0;
+        for entry in std::fs::read_dir(&current_path)? {
+            let entry = entry?;
+            let item = FileItem {
+                id: id,
+                path: entry.path(),
+                display_name: entry.file_name().to_string_lossy().to_string(),
+                is_dir: entry.file_type()?.is_dir(),
+            };
+            res.push_back(item);
+            id += 1;
+        }
+        Ok(Self::new_with(current_path, res))
+    }
+
+    fn new_with(path: PathBuf, pending: VecDeque<FileItem>) -> Self {
         Self {
             path,
             mid: ScrollList::new(pending),
@@ -194,16 +215,53 @@ impl SelectModel {
             .block(Block::bordered().title("Right"))
             .render(right_area, buf);
     }
+
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> Res<Cmd> {
+        match key_event.code {
+            KeyCode::Left => {
+                self.move_item(self.cursor, self.cursor.move_left());
+            }
+            KeyCode::Right => {
+                self.move_item(self.cursor, self.cursor.move_right());
+            }
+            KeyCode::Up => {
+                self.cursor = self.cursor.shift_up();
+            }
+            KeyCode::Down => {
+                if self.cursor.index < self.get_list(self.cursor.focus).len() - 1 {
+                    self.cursor = self.cursor.shift_down();
+                }
+            }
+            KeyCode::Char('q') | KeyCode::Esc => return Ok(Cmd::Exit),
+            _ => {}
+        }
+        Ok(Cmd::None)
+    }
 }
 
 impl crate::core::traits::Model for SelectModel {
     fn update(&mut self, msg: Msg, _: &crate::core::context::Context) -> Cmd {
         match msg {
             Msg::Exit => return Cmd::Exit,
-            Msg::Key(_ket_event) => {}
+            Msg::Key(ket_event) => {
+                tracing::info!("[SelectModel] got key {:?}", ket_event);
+                let res = self.handle_key_event(ket_event);
+                match res {
+                    color_eyre::Result::Ok(cmd) => return cmd,
+                    color_eyre::Result::Err(e) => {
+                        return Cmd::Error(e.to_string());
+                    }
+                }
+            }
+            // Now, 其实不需要处理这些信息，因为它一定会被运行时处理并重新渲染
+            // Msg::FileChanged => {
+            //     // self.should_redraw = true
+            // }
+            // Msg::Tick => {
+            //     // should_redraw = true
+            // }
             _ => return Cmd::None,
         }
-
         Cmd::None
     }
 
@@ -223,6 +281,7 @@ impl crate::core::traits::Model for SelectModel {
             // .border_set(border::THICK)
             ;
 
+        let inner_area = block.inner(area);
         block.render(area, buf);
 
         let columns = Layout::horizontal([
@@ -230,32 +289,36 @@ impl crate::core::traits::Model for SelectModel {
             Constraint::Percentage(34),
             Constraint::Percentage(33),
         ]);
-        let [left_area, mid_area, right_area] = columns.areas(area);
+        let [left_area, mid_area, right_area] = columns.areas(inner_area);
 
         let left_items = self.render_list(Focus::Left);
+        let left_style = if self.cursor.focus == Focus::Left {
+            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow).bold()
+        } else {
+            ratatui::style::Style::default()
+        };
         Paragraph::new(left_items)
-            .block(Block::bordered().title("Left"))
-            .render(left_area, buf);
-
-        let _left_block = Block::new()
-            .borders(Borders::ALL)
-            .title_top("Mid List")
-            .border_style(match self.cursor.focus {
-                Focus::Left => ratatui::style::Style::default()
-                    .fg(ratatui::style::Color::Yellow)
-                    .bold(),
-                _ => ratatui::style::Style::default(),
-            })
+            .block(Block::bordered().title("Left").border_style(left_style))
             .render(left_area, buf);
 
         let mid_items = self.render_list(Focus::Mid);
+        let mid_style = if self.cursor.focus == Focus::Mid {
+            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow).bold()
+        } else {
+            ratatui::style::Style::default()
+        };
         Paragraph::new(mid_items)
-            .block(Block::bordered().title("Mid"))
+            .block(Block::bordered().title("Mid").border_style(mid_style))
             .render(mid_area, buf);
 
         let right_items = self.render_list(Focus::Right);
+        let right_style = if self.cursor.focus == Focus::Right {
+            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow).bold()
+        } else {
+            ratatui::style::Style::default()
+        };
         Paragraph::new(right_items)
-            .block(Block::bordered().title("Right"))
+            .block(Block::bordered().title("Right").border_style(right_style))
             .render(right_area, buf);
     }
 }
