@@ -114,30 +114,41 @@ impl Runner {
 
         // 2. 阻塞式事件循环：只有收到消息（信号）时才继续执行
         while let Some(msg) = self.servicer.recv().await {
-            // tracing::info!("[runner] recv {:#?}", msg);
-            // 处理触发循环的第一个消息
-            let mut envelope = self
-                .model_manager
-                .update(EpochEnvelope::new(msg), &self.context);
-            self.handle_cmd(envelope);
+            let mut should_redraw = self.handle_msg(msg);
 
             // 3. 性能优化：排空当前队列中所有积压的消息，避免连续多次重绘
             while let Result::Ok(msg) = self.servicer.try_recv() {
-                envelope = self
-                    .model_manager
-                    .update(EpochEnvelope::new(msg), &self.context);
-                self.handle_cmd(envelope);
+                if self.handle_msg(msg) {
+                    should_redraw = true;
+                }
             }
 
             if self.should_exit {
                 break;
             }
 
-            // 4. 只有在处理完所有当前消息后才重绘一次
-            _ = self.draw(term)?;
+            // 4. 只有在处理完所有当前消息且确实需要重绘时才执行
+            if should_redraw {
+                _ = self.draw(term)?;
+            }
         }
 
         Ok(())
+    }
+
+    fn handle_msg(&mut self, msg: Msg) -> bool {
+        // 基础逻辑：Tick 默认不触发重绘（除非你有动画需求），其他事件触发重绘
+        let should_redraw = match msg {
+            Msg::Tick => false, 
+            _ => true,
+        };
+
+        let envelope = self
+            .model_manager
+            .update(EpochEnvelope::new(msg), &self.context);
+        self.handle_cmd(envelope);
+
+        should_redraw
     }
 
     fn handle_cmd(&mut self, envelope: EpochEnvelope<Cmd>) {

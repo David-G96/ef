@@ -5,3 +5,6 @@
 .vscode/
 logs/
 flow.md
+.venv
+plot.png
+release-plot.png

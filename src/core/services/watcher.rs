@@ -28,7 +28,8 @@ impl Watcher {
                 Duration::from_millis(500),
                 move |res: DebounceEventResult| match res {
                     Ok(_events) => {
-                        let _ = tx.send(Msg::FileChanged);
+                        // 修复：在同步回调中使用 blocking_send 确保消息发出
+                        let _ = tx.blocking_send(Msg::FileChanged);
                         tracing::info!("[Watcher] file changed debounced!")
                     }
                     Err(e) => {
@@ -48,30 +49,29 @@ impl Watcher {
             tracing::info!("[Watcher] start watching: {:?}", current_path);
 
             loop {
-                match cmd_rx.try_recv() {
-                    Ok(cmd) => match cmd {
-                        WatchCommand::ChangeWatchPath(new_path) => {
-                            tracing::info!("");
+                // 修复：使用 blocking_recv 替代 try_recv。
+                // 这会让线程在没有命令时进入休眠状态，不再消耗 CPU。
+                match cmd_rx.blocking_recv() {
+                    Some(WatchCommand::ChangeWatchPath(new_path)) => {
+                        tracing::info!("[Watcher] changing path to: {:?}", new_path);
 
-                            let _ = debouncer.watcher().unwatch(&current_path);
+                        let _ = debouncer.watcher().unwatch(&current_path);
 
-                            if let Err(e) = debouncer
-                                .watcher()
-                                .watch(&new_path, notify::RecursiveMode::NonRecursive)
-                            {
-                                tracing::error!(
-                                    "[Watcher] failed to change path from `{:?}` to `{:?}` due to {:?}",
-                                    &current_path,
-                                    &new_path,
-                                    e
-                                )
-                            } else {
-                                current_path = new_path;
-                            }
+                        if let Err(e) = debouncer
+                            .watcher()
+                            .watch(&new_path, notify::RecursiveMode::NonRecursive)
+                        {
+                            tracing::error!(
+                                "[Watcher] failed to change path from `{:?}` to `{:?}` due to {:?}",
+                                &current_path,
+                                &new_path,
+                                e
+                            )
+                        } else {
+                            current_path = new_path;
                         }
-                    },
-                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => break,
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {} // do nothing
+                    }
+                    None => break, // Channel 已关闭，退出循环
                 }
             }
         });
