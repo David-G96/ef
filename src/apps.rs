@@ -5,13 +5,7 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
-    DefaultTerminal, Frame,
-    buffer::Buffer,
-    layout::{Constraint, Layout, Rect},
-    style::Stylize,
-    symbols::border,
-    text::Line,
-    widgets::{Block, Paragraph, Widget},
+    DefaultTerminal, Frame, buffer::Buffer, layout::{Constraint, Layout, Rect}, style::Stylize, symbols::border, text::Line, widgets::{Block, Paragraph, Widget}
 };
 use uuid::{ContextV7, Timestamp, Uuid};
 

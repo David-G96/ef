@@ -1,14 +1,17 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, ops::Deref};
 
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    widgets::{Block, Borders, List, ListItem},
+    style::Stylize as _,
+    symbols::border,
+    text::Line,
+    widgets::{Block, Borders, List, ListItem, StatefulWidget, Widget},
 };
 
-use crate::app::{
+use crate::core::{
     App,
-    components::{ListType, WorkSpace},
+    component::{Focus, WorkSpace},
 };
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -34,7 +37,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .borders(Borders::ALL)
         .title("Mid list")
         .border_style(match cursor.focus {
-            ListType::Mid => ratatui::style::Style::default()
+            Focus::Mid => ratatui::style::Style::default()
                 .fg(ratatui::style::Color::Yellow)
                 .bold(),
             _ => ratatui::style::Style::default(),
@@ -43,7 +46,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let mid_list = List::new(
         mid.items
             .iter()
-            .map(|i: &crate::app::components::FileItem| ListItem::new(i.display_name.as_str()))
+            .map(|i: &crate::core::component::FileItem| ListItem::new(i.display_name.as_str()))
             .collect::<VecDeque<_>>(),
     )
     .block(mid_block)
@@ -56,7 +59,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .borders(Borders::ALL)
         .title("left list")
         .border_style(match cursor.focus {
-            ListType::Left => ratatui::style::Style::default()
+            Focus::Left => ratatui::style::Style::default()
                 .fg(ratatui::style::Color::Yellow)
                 .bold(),
             _ => ratatui::style::Style::default(),
@@ -65,7 +68,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let left_list = List::new(
         left.items
             .iter()
-            .map(|i: &crate::app::components::FileItem| ListItem::new(i.display_name.as_str()))
+            .map(|i: &crate::core::component::FileItem| ListItem::new(i.display_name.as_str()))
             .collect::<VecDeque<_>>(),
     )
     .block(left_block)
@@ -78,7 +81,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .borders(Borders::ALL)
         .title("right list")
         .border_style(match cursor.focus {
-            ListType::Right => ratatui::style::Style::default()
+            Focus::Right => ratatui::style::Style::default()
                 .fg(ratatui::style::Color::Yellow)
                 .bold(),
             _ => ratatui::style::Style::default(),
@@ -88,10 +91,52 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         right
             .items // right is at index 0 in the `right` slice
             .iter()
-            .map(|i: &crate::app::components::FileItem| ListItem::new(i.display_name.as_str()))
+            .map(|i: &crate::core::component::FileItem| ListItem::new(i.display_name.as_str()))
             .collect::<VecDeque<_>>(),
     )
     .block(right_block)
     .highlight_symbol(">>");
+
     frame.render_stateful_widget(right_list, chunks[2], &mut right.state);
+}
+
+pub struct AppWrapper<'a>(pub &'a App);
+
+impl<'a> Deref for AppWrapper<'a> {
+    type Target = App;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'a> Widget for AppWrapper<'a> {
+    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
+    where
+        Self: Sized,
+    {
+        // let title = Line::from("This is the placeholder for the current path")
+        //     .blue()
+        //     .bold();
+        let instructions = Line::from(vec![
+            " Move Left ".into(),
+            "<LEFT>".blue().bold(),
+            " Move Right ".into(),
+            "<RIGHT>".blue().bold(),
+            " Quit ".into(),
+            "<Q> ".blue().bold(),
+        ]);
+
+        let block = Block::bordered()
+            // .title(title.centered())
+            .title_bottom(instructions.centered())
+            // .border_set(border::THICK)
+            ;
+
+        let inner_area = block.inner(area);
+        block.render(area, buf);
+
+        self.0
+            .workspace
+            .render_as_stateful(inner_area, buf, &self.0.cursor);
+    }
 }
