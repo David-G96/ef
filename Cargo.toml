@@ -48,7 +48,7 @@ log = "0.4.29"
 # directories = "6.0.0"
 notify = "8.2.0"
 notify-debouncer-mini = "0.7.0"
-ratatui = { version = "0.30.0-alpha", features = [] }
+ratatui = { version = "0.30.0-alpha", features = ["unstable-widget-ref"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.4"
 # tracing-error = "0.2.1"

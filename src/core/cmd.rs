@@ -1,9 +1,9 @@
-use std::{
-    collections::VecDeque,
-    path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 
-use crate::core::model::{component::FileItem, selector::SelectModel};
+use crate::core::model::{
+    component::ScrollList,
+    selector::SelectModel,
+};
 
 // #[derive(Debug, PartialEq, Eq)]
 // pub struct CmdEnvelope<T> {
@@ -18,6 +18,12 @@ pub enum Cmd {
     // QueryFileType(PathBuf),
     Batch(Vec<Self>),
     IntoProcess(SelectModel),
+    IntoSelect(
+        PathBuf,
+        Option<ScrollList>,
+        Option<ScrollList>,
+        Option<ScrollList>,
+    ),
     Organize(Vec<PathBuf>, PathBuf),
     Delete(Vec<PathBuf>),
     Exit,

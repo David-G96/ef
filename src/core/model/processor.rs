@@ -4,24 +4,67 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::core::{
     cmd::Cmd,
-    model::{component::Focus, selector::SelectModel},
+    model::{
+        component::ScrollList,
+        selector::SelectModel,
+    },
     msg::Msg,
     traits::Model,
 };
 use color_eyre::{Result as Res, eyre::Ok};
 use ratatui::{
-    layout::{Constraint, Layout},
+    layout::Layout,
+    macros::constraints,
     style::Stylize,
     text::Line,
-    widgets::{Block, Borders, Paragraph, Widget as _},
+    widgets::{Block, Widget as _},
 };
 
 #[derive(Debug, Default)]
+pub enum InProcess {
+    /// alias 'n'
+    #[default]
+    None,
+    /// alias 'd'
+    Delete,
+    /// alias 't' 'tr'
+    Trash,
+    /// alias 'o' 'og'
+    Organize(String),
+    /// alias 'm' 'mv'
+    Move(PathBuf),
+    /// alias 'c' 'cp'
+    Copy,
+    /// not yet impl
+    Zip(),
+}
+
+#[derive(Debug, Default)]
 pub struct Processor {
+    mid: ScrollList,
+    // mid_process : InProcess,
+    left: ScrollList,
+    left_proc: InProcess,
+    right: ScrollList,
+    right_proc: InProcess,
+
+    /// default false, which is left
+    focus_right: bool,
+
     pub inner: SelectModel,
 }
 
 impl Processor {
+    pub fn new(inner: SelectModel) -> Self {
+        Self {
+            inner: inner.clone(),
+            left: inner.left.clone(),
+            right: inner.right.clone(),
+            focus_right: false,
+            ..Default::default()
+        }
+    }
+
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Res<Cmd> {
         match key_event.code {
             KeyCode::Left => {
@@ -37,6 +80,8 @@ impl Processor {
                 self.inner.cursor = self.inner.cursor.shift_down();
             }
             KeyCode::Char('o') => {}
+            KeyCode::Char('d') => {}
+            KeyCode::Char('q') => return Ok(Cmd::Exit),
             _ => {}
         }
         Ok(Cmd::None)
@@ -70,7 +115,7 @@ impl Model for Processor {
         ]);
 
         let block = Block::bordered()
-            // .title(title.centered())
+            // .title(Line::from("Processing...").centered())
             .title_bottom(instructions.centered())
             // .border_set(border::THICK)
             ;
@@ -78,47 +123,53 @@ impl Model for Processor {
         let inner_area = block.inner(area);
         block.render(area, buf);
 
-        let columns = Layout::horizontal([
-            Constraint::Percentage(33),
-            Constraint::Percentage(34),
-            Constraint::Percentage(33),
-        ]);
-        let [left_area, mid_area, right_area] = columns.areas(inner_area);
+        let columns = Layout::horizontal(constraints![==50%, ==50%]);
+        let [left_area, right_area] = columns.areas(inner_area);
 
-        let left_items = self.inner.render_list(Focus::Left);
-        let left_style = if self.inner.cursor.focus == Focus::Left {
-            ratatui::style::Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .bold()
-        } else {
-            ratatui::style::Style::default()
-        };
-        Paragraph::new(left_items)
-            .block(Block::bordered().title("Left").border_style(left_style))
-            .render(left_area, buf);
+        // waiting
+        if matches!(self.left_proc, InProcess::None) {
+            self.left
+                .render(!self.focus_right, None, "Left")
+                .render(left_area, buf);
+        }
+        // processing
+        else if !self.focus_right {
+            self.left
+                .render(!self.focus_right, None, "Left - Processing")
+                .render(left_area, buf);
+        }
+        // processed but not applied
+        else {
+            self.left
+                .render(
+                    !self.focus_right,
+                    None,
+                    &format!("Left - *{:?}", self.left_proc),
+                )
+                .render(left_area, buf);
+        }
 
-        let mid_items = self.inner.render_list(Focus::Mid);
-        let mid_style = if self.inner.cursor.focus == Focus::Mid {
-            ratatui::style::Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .bold()
-        } else {
-            ratatui::style::Style::default()
-        };
-        Paragraph::new(mid_items)
-            .block(Block::bordered().title("Mid").border_style(mid_style))
-            .render(mid_area, buf);
-
-        let right_items = self.inner.render_list(Focus::Right);
-        let right_style = if self.inner.cursor.focus == Focus::Right {
-            ratatui::style::Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .bold()
-        } else {
-            ratatui::style::Style::default()
-        };
-        Paragraph::new(right_items)
-            .block(Block::bordered().title("Right").border_style(right_style))
-            .render(right_area, buf);
+        // waiting
+        if matches!(self.right_proc, InProcess::None) {
+            self.right
+                .render(self.focus_right, None, "Right")
+                .render(right_area, buf);
+        }
+        // processing
+        else if self.focus_right {
+            self.right
+                .render(self.focus_right, None, "Right - Processing")
+                .render(right_area, buf);
+        }
+        // processed but not applied
+        else {
+            self.right
+                .render(
+                    self.focus_right,
+                    None,
+                    &format!("Right - *{:?}", self.right_proc),
+                )
+                .render(right_area, buf);
+        }
     }
 }

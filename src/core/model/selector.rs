@@ -63,7 +63,7 @@ impl SelectModel {
         for entry in std::fs::read_dir(&current_path)? {
             let entry = entry?;
             let item = FileItem {
-                id: id,
+                id,
                 path: entry.path(),
                 display_name: entry.file_name().to_string_lossy().to_string(),
                 is_dir: entry.file_type()?.is_dir(),
@@ -129,34 +129,31 @@ impl SelectModel {
     }
 
     fn undo(&mut self) -> Option<()> {
-        match self.history.last() {
-            Some(cmd) => match cmd.clone() {
-                // Clone the command to own it
-                SelectOperation::Move {
-                    item_id,
-                    from_list,
-                    from_index,
-                    to_list,
-                    ..
-                } => {
-                    // 1. 从“去向列表”中移除该项
-                    let target_list = self.get_list_mut(to_list);
-                    let pos = target_list.iter().position(|i| i.id == item_id)?;
-                    let item = target_list.remove(pos)?;
+        if let Some(cmd) = self.history.last() { match cmd.clone() {
+            // Clone the command to own it
+            SelectOperation::Move {
+                item_id,
+                from_list,
+                from_index,
+                to_list,
+                ..
+            } => {
+                // 1. 从“去向列表”中移除该项
+                let target_list = self.get_list_mut(to_list);
+                let pos = target_list.iter().position(|i| i.id == item_id)?;
+                let item = target_list.remove(pos)?;
 
-                    // 2. 恢复其原始路径，因为在执行 Move 命令时，item 的 path 已经被更新为 new_path
+                // 2. 恢复其原始路径，因为在执行 Move 命令时，item 的 path 已经被更新为 new_path
 
-                    // 3. 放回“来源列表”的原始位置
-                    let source_list = self.get_list_mut(from_list);
-                    if from_index >= source_list.len() {
-                        source_list.push_back(item);
-                    } else {
-                        source_list.insert(from_index, item);
-                    }
+                // 3. 放回“来源列表”的原始位置
+                let source_list = self.get_list_mut(from_list);
+                if from_index >= source_list.len() {
+                    source_list.push_back(item);
+                } else {
+                    source_list.insert(from_index, item);
                 }
-            },
-            None => {}
-        }
+            }
+        } }
 
         self.history.undo();
         Some(())
@@ -194,7 +191,7 @@ impl SelectModel {
             .block(Block::bordered().title("Left"))
             .render(left_area, buf);
 
-        let _left_block = Block::new()
+        Block::new()
             .borders(Borders::ALL)
             .title_top("Mid List")
             .border_style(match state.focus {

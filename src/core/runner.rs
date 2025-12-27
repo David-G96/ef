@@ -109,7 +109,7 @@ impl Runner {
             .with_task_manager(8);
 
         // 1. 初始渲染：确保程序启动时用户能看到界面
-        _ = self.draw(term)?;
+        self.draw(term)?;
 
         // 2. 阻塞式事件循环：只有收到消息（信号）时才继续执行
         while let Some(msg) = self.servicer.recv().await {
@@ -128,7 +128,7 @@ impl Runner {
 
             // 4. 只有在处理完所有当前消息且确实需要重绘时才执行
             if should_redraw {
-                _ = self.draw(term)?;
+                self.draw(term)?;
             }
         }
 
@@ -161,7 +161,7 @@ impl Runner {
             }
             Cmd::IntoProcess(m) => {
                 self.model_manager
-                    .change_model(Box::new(Processor { inner: m }));
+                    .change_model(Box::new(Processor::new(m)));
             }
             _ => {}
         }

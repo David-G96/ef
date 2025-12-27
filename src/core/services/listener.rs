@@ -38,11 +38,10 @@ impl Listener {
                 if event::poll(Duration::from_millis(100)).unwrap_or(false) {
                     match event::read() {
                         Ok(CrosstermEvent::Key(key)) => {
-                            if key.kind == KeyEventKind::Press {
-                                if tx.blocking_send(Msg::Key(key)).is_err() {
+                            if key.kind == KeyEventKind::Press
+                                && tx.blocking_send(Msg::Key(key)).is_err() {
                                     break;
                                 }
-                            }
                         }
                         Ok(CrosstermEvent::Paste(paste_content)) => {
                             if tx.blocking_send(Msg::Paste(paste_content)).is_err() {

@@ -1,11 +1,11 @@
-//! Reusable components for the Model
+//! Reusable common components for models
 //!
 use std::collections::VecDeque;
 
 use ratatui::{
-    style::Stylize as _,
+    style::{self, Style, Stylize as _},
     text::Line,
-    widgets::{ListState, Widget},
+    widgets::{Block, ListState, Paragraph, StatefulWidget, Widget},
 };
 
 use std::path::PathBuf;
@@ -55,11 +55,6 @@ impl std::fmt::Display for FileItem {
             self.is_dir
         )
     }
-}
-
-#[derive(Debug, Default)]
-pub struct FileManager {
-    items: Vec<FileItem>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -130,10 +125,14 @@ impl<T> History<T> {
 
     pub fn last(&self) -> Option<&T> {
         if self.top == 0 {
-            return None;
+            None
         } else {
             Some(&self.history[self.top - 1])
         }
+    }
+
+    pub fn count(&self) -> usize {
+        self.history.len()
     }
 }
 
@@ -149,6 +148,32 @@ impl ScrollList {
             items,
             state: ListState::default(),
         }
+    }
+
+    pub fn render<'a>(
+        &'a self,
+        is_focus: bool,
+        index: Option<usize>,
+        tittle: &'a str,
+    ) -> Paragraph<'a> {
+        let lines = self
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                let mut line = item.as_line();
+                if is_focus && index.map(|_i| _i == i).unwrap_or(false) {
+                    line = line.reversed();
+                }
+                line
+            })
+            .collect::<Vec<Line>>();
+        let style = if is_focus {
+            Style::default().fg(style::Color::Yellow).bold()
+        } else {
+            style::Style::default().dim()
+        };
+        Paragraph::new(lines).block(Block::bordered().title(tittle).border_style(style))
     }
 }
 

@@ -54,7 +54,7 @@ pub fn organize<P: AsRef<Path>>(items: &[P], target_dir_path: &Path) -> Res<()> 
     }
 
     // 5. 创建目录
-    fs::create_dir(&dest_dir)
+    fs::create_dir(dest_dir)
         .with_context(|| format!("Failed to create directory '{}'", dest_dir.display()))?;
 
     // 6. 移动所有文件
@@ -70,7 +70,7 @@ pub fn organize<P: AsRef<Path>>(items: &[P], target_dir_path: &Path) -> Res<()> 
     Ok(())
 }
 
-pub fn do_nothing<P: AsRef<Path>>(items: &[P]) {
+pub fn do_nothing<P: AsRef<Path>>(_items: &[P]) {
     //do nothing
 }
 pub fn delete() {}
