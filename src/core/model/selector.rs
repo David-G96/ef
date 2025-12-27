@@ -1,11 +1,11 @@
-use std::{collections::VecDeque, env, fs::read_dir, path::PathBuf, thread::current};
+use std::{collections::VecDeque, env, path::PathBuf};
 
 use crate::core::{
     cmd::Cmd,
     model::component::{Cursor, FileItem, Focus, History, ScrollList},
     msg::Msg,
 };
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     layout::{Constraint, Layout},
     style::Stylize,
@@ -17,7 +17,7 @@ use color_eyre::{Result as Res, eyre::Ok};
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum SelectCommand {
+pub enum SelectOperation {
     // 移动操作：记录从哪来、到哪去，以及它在原列表中的原始位置（用于完美还原）
     Move {
         item_id: u64,
@@ -45,14 +45,14 @@ pub enum SelectCommand {
 }
 
 /// 分三列的工作区！（左右中）
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SelectModel {
-    path: PathBuf,
-    mid: ScrollList,
-    left: ScrollList,
-    right: ScrollList,
-    cursor: Cursor,
-    history: History<SelectCommand>,
+    pub(crate) path: PathBuf,
+    pub(crate) mid: ScrollList,
+    pub(crate) left: ScrollList,
+    pub(crate) right: ScrollList,
+    pub(crate) cursor: Cursor,
+    pub(crate) history: History<SelectOperation>,
 }
 
 impl SelectModel {
@@ -85,7 +85,7 @@ impl SelectModel {
         }
     }
 
-    fn log_history(&mut self, cmd: SelectCommand) {
+    fn log_history(&mut self, cmd: SelectOperation) {
         self.history.log(cmd);
     }
 
@@ -113,7 +113,7 @@ impl SelectModel {
         let item = from_list.remove(from.index)?;
         let item_id = item.id;
 
-        let cmd = SelectCommand::Move {
+        let cmd = SelectOperation::Move {
             item_id,
             from_list: from.focus,
             from_index: from.index,
@@ -132,7 +132,7 @@ impl SelectModel {
         match self.history.last() {
             Some(cmd) => match cmd.clone() {
                 // Clone the command to own it
-                SelectCommand::Move {
+                SelectOperation::Move {
                     item_id,
                     from_list,
                     from_index,
@@ -162,7 +162,7 @@ impl SelectModel {
         Some(())
     }
 
-    fn render_list<'a>(&'a self, list_type: Focus) -> Vec<Line<'a>> {
+   pub(crate) fn render_list<'a>(&'a self, list_type: Focus) -> Vec<Line<'a>> {
         self.get_list(list_type)
             .iter()
             .enumerate()
@@ -233,6 +233,10 @@ impl SelectModel {
                 }
             }
             KeyCode::Char('q') | KeyCode::Esc => return Ok(Cmd::Exit),
+            KeyCode::Char('z') if key_event.modifiers == KeyModifiers::CONTROL => {
+                _ = self.undo();
+            }
+            KeyCode::Enter => return Ok(Cmd::IntoProcess(self.clone())),
             _ => {}
         }
         Ok(Cmd::None)
@@ -242,27 +246,14 @@ impl SelectModel {
 impl crate::core::traits::Model for SelectModel {
     fn update(&mut self, msg: Msg, _: &crate::core::context::Context) -> Cmd {
         match msg {
-            Msg::Exit => return Cmd::Exit,
+            Msg::Exit => Cmd::Exit,
             Msg::Key(ket_event) => {
                 tracing::info!("[SelectModel] got key {:?}", ket_event);
-                let res = self.handle_key_event(ket_event);
-                match res {
-                    color_eyre::Result::Ok(cmd) => return cmd,
-                    color_eyre::Result::Err(e) => {
-                        return Cmd::Error(e.to_string());
-                    }
-                }
+                self.handle_key_event(ket_event)
+                    .unwrap_or_else(|e| Cmd::Error(e.to_string()))
             }
-            // Now, 其实不需要处理这些信息，因为它一定会被运行时处理并重新渲染
-            // Msg::FileChanged => {
-            //     // self.should_redraw = true
-            // }
-            // Msg::Tick => {
-            //     // should_redraw = true
-            // }
-            _ => return Cmd::None,
+            _ => Cmd::None,
         }
-        Cmd::None
     }
 
     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
@@ -293,7 +284,9 @@ impl crate::core::traits::Model for SelectModel {
 
         let left_items = self.render_list(Focus::Left);
         let left_style = if self.cursor.focus == Focus::Left {
-            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow).bold()
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .bold()
         } else {
             ratatui::style::Style::default()
         };
@@ -303,7 +296,9 @@ impl crate::core::traits::Model for SelectModel {
 
         let mid_items = self.render_list(Focus::Mid);
         let mid_style = if self.cursor.focus == Focus::Mid {
-            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow).bold()
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .bold()
         } else {
             ratatui::style::Style::default()
         };
@@ -313,7 +308,9 @@ impl crate::core::traits::Model for SelectModel {
 
         let right_items = self.render_list(Focus::Right);
         let right_style = if self.cursor.focus == Focus::Right {
-            ratatui::style::Style::default().fg(ratatui::style::Color::Yellow).bold()
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .bold()
         } else {
             ratatui::style::Style::default()
         };

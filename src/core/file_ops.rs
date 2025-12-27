@@ -22,17 +22,18 @@ pub enum FileOpError {
     DirAlreadyExists(),
 }
 
-pub fn organize<P: AsRef<Path>>(items: &[P], target_path: &Path, dir_name: &str) -> Res<()> {
+pub fn organize<P: AsRef<Path>>(items: &[P], target_dir_path: &Path) -> Res<()> {
     // 1. 验证目标路径是否存在且为目录
-    if !target_path.is_dir() {
-        bail!(
-            "Target path '{}' is not a valid directory.",
-            target_path.display()
-        );
-    }
+    // if !target_dir_path.is_dir() {
+    //     bail!(
+    //         "Target path '{}' is not a valid directory.",
+    //         target_dir_path.display()
+    //     );
+    // }
 
     // 2. 构建最终的目标目录路径
-    let dest_dir = target_path.join(dir_name);
+    // let dest_dir = target_dir_path.join(dir_name);
+    let dest_dir = target_dir_path;
 
     // 3. 验证目标目录是否已存在，避免覆盖
     if dest_dir.exists() {

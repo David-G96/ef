@@ -1,7 +1,6 @@
 mod core;
 
 use color_eyre::{Result, eyre::Ok};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> Result<()> {

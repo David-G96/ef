@@ -1,4 +1,4 @@
-//! Reusable components for the App
+//! Reusable components for the Model
 //!
 use std::collections::VecDeque;
 
@@ -88,7 +88,7 @@ impl Focus {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct History<T> {
     history: Vec<T>,
     /// points to the next command
@@ -137,7 +137,7 @@ impl<T> History<T> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ScrollList {
     pub items: VecDeque<FileItem>,
     pub state: ListState,

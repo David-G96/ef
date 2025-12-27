@@ -7,5 +7,6 @@ pub mod msg;
 pub mod runner;
 pub mod services;
 pub mod traits;
+pub mod file_ops;
 
 // pub use app::App;

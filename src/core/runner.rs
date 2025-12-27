@@ -3,15 +3,14 @@ use std::{env, fmt::Debug};
 use crate::core::{
     cmd::Cmd,
     context::Context,
-    model::selector::SelectModel,
+    model::{processor::Processor, selector::SelectModel},
     msg::Msg,
-    services::{listener::Listener, servicer::Servicer, tasks::TaskManager, watcher::Watcher},
-    traits::Model,
+    services::servicer::Servicer,
+    traits::{AnyModel, Model},
 };
 
 use color_eyre::{Result as Res, eyre::Ok};
 use ratatui::{DefaultTerminal, layout::Rect};
-use tokio::sync::mpsc::error::TryRecvError;
 
 #[derive(Debug, Default)]
 struct EpochEnvelope<T> {
@@ -37,12 +36,12 @@ impl<T> EpochEnvelope<T> {
 }
 
 #[derive(Default)]
-struct EpochModelManager {
+struct EpochModel {
     curr_model: Option<Box<dyn Model>>,
     curr_epoch: u32,
 }
 
-impl EpochModelManager {
+impl EpochModel {
     pub fn new(model: Box<dyn Model>) -> Self {
         Self {
             curr_model: Some(model),
@@ -81,7 +80,7 @@ impl EpochModelManager {
     }
 }
 
-impl Debug for EpochModelManager {
+impl Debug for EpochModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }
@@ -89,7 +88,7 @@ impl Debug for EpochModelManager {
 
 #[derive(Debug, Default)]
 pub struct Runner {
-    model_manager: EpochModelManager,
+    model_manager: EpochModel,
     servicer: Servicer,
     context: Context,
     should_exit: bool,
@@ -136,10 +135,11 @@ impl Runner {
         Ok(())
     }
 
+    /// redraw logic inside
     fn handle_msg(&mut self, msg: Msg) -> bool {
         // 基础逻辑：Tick 默认不触发重绘（除非你有动画需求），其他事件触发重绘
         let should_redraw = match msg {
-            Msg::Tick => false, 
+            Msg::Tick => true,
             _ => true,
         };
 
@@ -155,6 +155,13 @@ impl Runner {
         match envelope.payload {
             Cmd::Exit => {
                 self.should_exit = true;
+            }
+            Cmd::Error(e) => {
+                tracing::error!("{:?}", e);
+            }
+            Cmd::IntoProcess(m) => {
+                self.model_manager
+                    .change_model(Box::new(Processor { inner: m }));
             }
             _ => {}
         }

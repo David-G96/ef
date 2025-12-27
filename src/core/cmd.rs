@@ -1,4 +1,9 @@
-use std::path::PathBuf;
+use std::{
+    collections::VecDeque,
+    path::{Path, PathBuf},
+};
+
+use crate::core::model::{component::FileItem, selector::SelectModel};
 
 // #[derive(Debug, PartialEq, Eq)]
 // pub struct CmdEnvelope<T> {
@@ -6,17 +11,22 @@ use std::path::PathBuf;
 //     payload: T,
 // }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Cmd {
     None,
-    // no one should call render, which will break the 声明式设计。
-    // 只有在runtime收到了应当render的信息时呼叫render
-    // Render,
     Error(String),
-    QueryFileType(PathBuf),
+    // QueryFileType(PathBuf),
     Batch(Vec<Self>),
+    IntoProcess(SelectModel),
+    Organize(Vec<PathBuf>, PathBuf),
+    Delete(Vec<PathBuf>),
     Exit,
 }
+
+// pub struct OrganizeCmd<'a, P: AsRef<Path>> {
+//     items: &'a [P],
+//     target_dir_path: &'a Path,
+// }
 
 // #[derive(Debug, PartialEq, Eq)]
 // pub struct GuardedCmd {
