@@ -4,8 +4,6 @@ use color_eyre::{Result, eyre::Ok};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // let console_layer = console_subscriber::spawn();
-
     // // 1. 创建一个非阻塞的文件写入器 (写入到 logs/app.log)
     // let file_appender = tracing_appender::rolling::hourly("logs", "app.log");
     // let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
@@ -19,11 +17,6 @@ async fn main() -> Result<()> {
     //     // .with_ansi(false)
     //     .init();
 
-    // tracing_subscriber::registry()
-    //     .with(console_layer)
-    //     .with(tracing_subscriber::fmt::layer())
-    //     .init();
-
     console_subscriber::init();
 
     // let mut sys = sysinfo::System::new_all();
@@ -34,8 +27,6 @@ async fn main() -> Result<()> {
     let mut term: ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>> =
         ratatui::init();
 
-    // let mut app = crate::core::App::new()?;
-    // let res = app.run_with_term(&mut term);
     let mut app = core::runner::Runner::new();
     app.run(&mut term).await?;
 

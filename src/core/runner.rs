@@ -96,7 +96,9 @@ pub struct Runner {
 
 impl Runner {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            ..Default::default()
+        }
     }
 
     pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
@@ -160,8 +162,7 @@ impl Runner {
                 tracing::error!("{:?}", e);
             }
             Cmd::IntoProcess(m) => {
-                self.model_manager
-                    .change_model(Box::new(Processor::new(m)));
+                self.model_manager.change_model(Box::new(Processor::new(m)));
             }
             _ => {}
         }

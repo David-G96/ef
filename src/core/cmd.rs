@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use crate::core::model::{
-    component::ScrollList,
-    selector::SelectModel,
-};
+use crate::core::model::{component::ScrollList, selector::SelectModel};
 
 // #[derive(Debug, PartialEq, Eq)]
 // pub struct CmdEnvelope<T> {
@@ -11,9 +8,12 @@ use crate::core::model::{
 //     payload: T,
 // }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum Cmd {
+    #[default]
     None,
+    SuggestRerender,
+    SuggestNoRerender,
     Error(String),
     // QueryFileType(PathBuf),
     Batch(Vec<Self>),
@@ -28,14 +28,3 @@ pub enum Cmd {
     Delete(Vec<PathBuf>),
     Exit,
 }
-
-// pub struct OrganizeCmd<'a, P: AsRef<Path>> {
-//     items: &'a [P],
-//     target_dir_path: &'a Path,
-// }
-
-// #[derive(Debug, PartialEq, Eq)]
-// pub struct GuardedCmd {
-//     pub cmd: Cmd,
-//     pub epoch: u32,
-// }

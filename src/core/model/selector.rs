@@ -129,37 +129,39 @@ impl SelectModel {
     }
 
     fn undo(&mut self) -> Option<()> {
-        if let Some(cmd) = self.history.last() { match cmd.clone() {
-            // Clone the command to own it
-            SelectOperation::Move {
-                item_id,
-                from_list,
-                from_index,
-                to_list,
-                ..
-            } => {
-                // 1. 从“去向列表”中移除该项
-                let target_list = self.get_list_mut(to_list);
-                let pos = target_list.iter().position(|i| i.id == item_id)?;
-                let item = target_list.remove(pos)?;
+        if let Some(cmd) = self.history.last() {
+            match cmd.clone() {
+                // Clone the command to own it
+                SelectOperation::Move {
+                    item_id,
+                    from_list,
+                    from_index,
+                    to_list,
+                    ..
+                } => {
+                    // 1. 从“去向列表”中移除该项
+                    let target_list = self.get_list_mut(to_list);
+                    let pos = target_list.iter().position(|i| i.id == item_id)?;
+                    let item = target_list.remove(pos)?;
 
-                // 2. 恢复其原始路径，因为在执行 Move 命令时，item 的 path 已经被更新为 new_path
+                    // 2. 恢复其原始路径，因为在执行 Move 命令时，item 的 path 已经被更新为 new_path
 
-                // 3. 放回“来源列表”的原始位置
-                let source_list = self.get_list_mut(from_list);
-                if from_index >= source_list.len() {
-                    source_list.push_back(item);
-                } else {
-                    source_list.insert(from_index, item);
+                    // 3. 放回“来源列表”的原始位置
+                    let source_list = self.get_list_mut(from_list);
+                    if from_index >= source_list.len() {
+                        source_list.push_back(item);
+                    } else {
+                        source_list.insert(from_index, item);
+                    }
                 }
             }
-        } }
+        }
 
         self.history.undo();
         Some(())
     }
 
-   pub(crate) fn render_list<'a>(&'a self, list_type: Focus) -> Vec<Line<'a>> {
+    pub(crate) fn render_list<'a>(&'a self, list_type: Focus) -> Vec<Line<'a>> {
         self.get_list(list_type)
             .iter()
             .enumerate()
@@ -213,7 +215,7 @@ impl SelectModel {
             .render(right_area, buf);
     }
 
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> Res<Cmd> {
+    fn handle_key_event(&mut self, key_event: &KeyEvent) -> Res<Cmd> {
         match key_event.code {
             KeyCode::Left => {
                 self.move_item(self.cursor, self.cursor.move_left());
@@ -246,7 +248,7 @@ impl crate::core::traits::Model for SelectModel {
             Msg::Exit => Cmd::Exit,
             Msg::Key(ket_event) => {
                 tracing::info!("[SelectModel] got key {:?}", ket_event);
-                self.handle_key_event(ket_event)
+                self.handle_key_event(&ket_event)
                     .unwrap_or_else(|e| Cmd::Error(e.to_string()))
             }
             _ => Cmd::None,
@@ -314,5 +316,90 @@ impl crate::core::traits::Model for SelectModel {
         Paragraph::new(right_items)
             .block(Block::bordered().title("Right").border_style(right_style))
             .render(right_area, buf);
+    }
+}
+
+impl crate::core::model::AnyModel for SelectModel {
+    type Cmd = crate::core::cmd::Cmd;
+    type Msg = crate::core::msg::Msg;
+    type Context = crate::core::context::Context;
+    fn draw(
+        &mut self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+    ) -> color_eyre::Result<()> {
+        let buf = frame.buffer_mut();
+        let instructions = Line::from(vec![
+            " Move Left ".into(),
+            "<LEFT>".blue().bold(),
+            " Move Right ".into(),
+            "<RIGHT>".blue().bold(),
+            " Quit ".into(),
+            "<Q> ".blue().bold(),
+        ]);
+
+        let block = Block::bordered()
+            // .title(title.centered())
+            .title_bottom(instructions.centered())
+            // .border_set(border::THICK)
+            ;
+
+        let inner_area = block.inner(area);
+        block.render(area, buf);
+
+        let columns = Layout::horizontal([
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+        ]);
+        let [left_area, mid_area, right_area] = columns.areas(inner_area);
+
+        let left_items = self.render_list(Focus::Left);
+        let left_style = if self.cursor.focus == Focus::Left {
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .bold()
+        } else {
+            ratatui::style::Style::default()
+        };
+        Paragraph::new(left_items)
+            .block(Block::bordered().title("Left").border_style(left_style))
+            .render(left_area, buf);
+
+        let mid_items = self.render_list(Focus::Mid);
+        let mid_style = if self.cursor.focus == Focus::Mid {
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .bold()
+        } else {
+            ratatui::style::Style::default()
+        };
+        Paragraph::new(mid_items)
+            .block(Block::bordered().title("Mid").border_style(mid_style))
+            .render(mid_area, buf);
+
+        let right_items = self.render_list(Focus::Right);
+        let right_style = if self.cursor.focus == Focus::Right {
+            ratatui::style::Style::default()
+                .fg(ratatui::style::Color::Yellow)
+                .bold()
+        } else {
+            ratatui::style::Style::default()
+        };
+        Paragraph::new(right_items)
+            .block(Block::bordered().title("Right").border_style(right_style))
+            .render(right_area, buf);
+        Ok(())
+    }
+    fn update(&mut self, msg: &Self::Msg, ctx: &Self::Context) -> Option<Self::Cmd> {
+        Some(match msg {
+            Msg::Exit => Cmd::Exit,
+            Msg::Key(ket_event) => {
+                tracing::info!("[SelectModel] got key {:?}", ket_event);
+                self.handle_key_event(ket_event)
+                    .unwrap_or_else(|e| Cmd::Error(e.to_string()))
+            }
+            _ => Cmd::None,
+        })
     }
 }

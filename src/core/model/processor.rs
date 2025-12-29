@@ -5,7 +5,8 @@ use crossterm::event::{KeyCode, KeyEvent};
 use crate::core::{
     cmd::Cmd,
     model::{
-        component::ScrollList,
+        AnyModel,
+        component::{ScrollList, input::InputBox},
         selector::SelectModel,
     },
     msg::Msg,
@@ -13,11 +14,12 @@ use crate::core::{
 };
 use color_eyre::{Result as Res, eyre::Ok};
 use ratatui::{
+    Frame,
     layout::Layout,
     macros::constraints,
     style::Stylize,
     text::Line,
-    widgets::{Block, Widget as _},
+    widgets::{Block, Paragraph, Widget as _},
 };
 
 #[derive(Debug, Default)]
@@ -30,13 +32,30 @@ pub enum InProcess {
     /// alias 't' 'tr'
     Trash,
     /// alias 'o' 'og'
-    Organize(String),
+    Organize(InputBox),
     /// alias 'm' 'mv'
-    Move(PathBuf),
+    Move(InputBox),
     /// alias 'c' 'cp'
-    Copy,
+    Copy(InputBox),
     /// not yet impl
     Zip(),
+    Rename,
+}
+
+impl std::fmt::Display for InProcess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use InProcess::*;
+        match self {
+            None => write!(f, ""),
+            Delete => write!(f, "Delete"),
+            Trash => write!(f, "Trash"),
+            Organize(path) => write!(f, "Organize:`{:?}`", path),
+            Move(path) => write!(f, "Move:`{:?}`", path),
+            Copy(path) => write!(f, "Copy:`{:?}`", path),
+            Zip() => todo!(),
+            x => write!(f, "{:?}", x),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -51,13 +70,13 @@ pub struct Processor {
     /// default false, which is left
     focus_right: bool,
 
-    pub inner: SelectModel,
+    /// 用来指示列表切换是否被锁住了，当被锁住时，说明正在输入，应该使用input box逻辑
+    is_locked: bool,
 }
 
 impl Processor {
     pub fn new(inner: SelectModel) -> Self {
         Self {
-            inner: inner.clone(),
             left: inner.left.clone(),
             right: inner.right.clone(),
             focus_right: false,
@@ -68,23 +87,55 @@ impl Processor {
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Res<Cmd> {
         match key_event.code {
             KeyCode::Left => {
-                self.inner.cursor = self.inner.cursor.move_left();
+                self.focus_right = !self.focus_right;
             }
             KeyCode::Right => {
-                self.inner.cursor = self.inner.cursor.move_right();
+                self.focus_right = !self.focus_right;
             }
-            KeyCode::Up => {
-                self.inner.cursor = self.inner.cursor.shift_up();
+            KeyCode::Char('o') => {
+                self.is_locked = true;
             }
-            KeyCode::Down => {
-                self.inner.cursor = self.inner.cursor.shift_down();
+            KeyCode::Char('c') => {
+                self.is_locked = true;
             }
-            KeyCode::Char('o') => {}
-            KeyCode::Char('d') => {}
+            KeyCode::Char('d') => {
+                self.is_locked = true;
+                if self.focus_right {
+                    self.right_proc = InProcess::Delete;
+                } else {
+                    self.left_proc = InProcess::Delete;
+                }
+            }
             KeyCode::Char('q') => return Ok(Cmd::Exit),
             _ => {}
         }
         Ok(Cmd::None)
+    }
+
+    fn render_list_panel(
+        &self,
+        list: &ScrollList,
+        proc: &InProcess,
+        is_focused: bool,
+        side_name: &str,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+    ) {
+        let title = if matches!(proc, InProcess::None) {
+            if is_focused {
+                format!("{} - Processing", side_name)
+            } else {
+                side_name.to_string()
+            }
+        } else {
+            format!("{} - *{}", side_name, proc)
+        };
+        list.render(is_focused, None, &title).render(area, buf);
+    }
+
+    pub fn draw(&mut self, f: &mut Frame) {
+        let area = f.area();
+        let buf = f.buffer_mut();
     }
 }
 
@@ -126,50 +177,39 @@ impl Model for Processor {
         let columns = Layout::horizontal(constraints![==50%, ==50%]);
         let [left_area, right_area] = columns.areas(inner_area);
 
-        // waiting
-        if matches!(self.left_proc, InProcess::None) {
-            self.left
-                .render(!self.focus_right, None, "Left")
-                .render(left_area, buf);
-        }
-        // processing
-        else if !self.focus_right {
-            self.left
-                .render(!self.focus_right, None, "Left - Processing")
-                .render(left_area, buf);
-        }
-        // processed but not applied
-        else {
-            self.left
-                .render(
-                    !self.focus_right,
-                    None,
-                    &format!("Left - *{:?}", self.left_proc),
-                )
-                .render(left_area, buf);
-        }
+        self.render_list_panel(
+            &self.left,
+            &self.left_proc,
+            !self.focus_right,
+            "Left",
+            left_area,
+            buf,
+        );
+        self.render_list_panel(
+            &self.right,
+            &self.right_proc,
+            self.focus_right,
+            "Right",
+            right_area,
+            buf,
+        );
+    }
+}
 
-        // waiting
-        if matches!(self.right_proc, InProcess::None) {
-            self.right
-                .render(self.focus_right, None, "Right")
-                .render(right_area, buf);
-        }
-        // processing
-        else if self.focus_right {
-            self.right
-                .render(self.focus_right, None, "Right - Processing")
-                .render(right_area, buf);
-        }
-        // processed but not applied
-        else {
-            self.right
-                .render(
-                    self.focus_right,
-                    None,
-                    &format!("Right - *{:?}", self.right_proc),
-                )
-                .render(right_area, buf);
-        }
+impl AnyModel for Processor {
+    type Cmd = crate::core::cmd::Cmd;
+    type Msg = crate::core::msg::Msg;
+    type Context = crate::core::context::Context;
+
+    fn draw(
+        &mut self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+    ) -> color_eyre::Result<()> {
+        todo!()
+    }
+
+    fn update(&mut self, msg: &Self::Msg, _: &Self::Context) -> Option<Self::Cmd> {
+        todo!()
     }
 }
