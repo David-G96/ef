@@ -1,34 +1,37 @@
-// use std::path::PathBuf;
+use std::path::PathBuf;
 
-// use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand};
 
-// #[derive(Parser)]
-// #[command(version, about, long_about = None)]
-// struct Cli {
-//     /// Optional name to operate on
-//     name: Option<String>,
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct Cli {
+    /// Optional path to open
+  pub  path: Option<String>,
 
-//     /// Sets a custom config file
-//     #[arg(short, long, value_name = "FILE")]
-//     config: Option<PathBuf>,
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    pub config: Option<PathBuf>,
 
-//     /// Turn debugging information on
-//     #[arg(short, long, action = clap::ArgAction::Count)]
-//     debug: u8,
+    /// Turn debugging information on
+    #[arg(short, long, action = clap::ArgAction::Count)]
+   pub  debug: u8,
 
-//     #[command(subcommand)]
-//     command: Option<Commands>,
-// }
+    /// Do not actually perform any operations
+    #[arg(short = 'n', long = "dry-run")]
+    pub dry_run: bool,
+    // #[command(subcommand)]
+    // command: Option<Commands>,
+}
 
-// #[derive(Subcommand)]
-// enum Commands {
-//     /// does testing things
-//     Test {
-//         /// lists test values
-//         #[arg(short, long)]
-//         list: bool,
-//     },
-// }
+#[derive(Subcommand)]
+enum Commands {
+    // /// does testing things
+    // Test {
+    //     /// lists test values
+    //     #[arg(short, long) ]
+    //     list: bool,
+    // },
+}
 
 // fn main() {
 //     let cli = Cli::parse();

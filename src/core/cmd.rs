@@ -10,7 +10,7 @@ pub enum Cmd {
     SuggestNoRerender,
     Error(String),
     // QueryFileType(PathBuf),
-    Batch(Vec<Self>),
+    Seq(Vec<Self>),
     IntoProcess(SelectModel),
     IntoSelect(
         PathBuf,
@@ -20,5 +20,8 @@ pub enum Cmd {
     ),
     Organize(Vec<PathBuf>, PathBuf),
     Delete(Vec<PathBuf>),
+    Copy(Vec<PathBuf>, PathBuf),
+    Trash(Vec<PathBuf>),
+    Move(Vec<PathBuf>, PathBuf),
     Exit,
 }

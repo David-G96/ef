@@ -1,30 +1,21 @@
-mod core;
 mod app;
 mod cli;
+mod core;
+mod errors;
+mod logging;
 
-
+use clap::Parser;
 use color_eyre::eyre::Result as Res;
 use std::io::stdout;
 
 use crossterm::{cursor::SetCursorStyle, execute};
 
+use crate::{app::App, cli::Cli};
+
 #[tokio::main]
 async fn main() -> Res<()> {
-    // 1. 创建一个非阻塞的文件写入器 (写入到 logs/app.log)
-    let file_appender = tracing_appender::rolling::hourly("logs", "app.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-
-    // 2. 初始化订阅者，设置格式包含 线程ID、时间、日志级别
-    tracing_subscriber::fmt()
-        .with_writer(non_blocking)
-        .with_thread_ids(true) // 关键：看到是哪个线程在说话
-        .with_thread_names(true)
-        // .with_target(true)
-        // .with_ansi(false)
-        .init();
-
-    // console_subscriber::init();
-    // let mut sys = sysinfo::System::new_all();
+    // 必须持有 guard，否则日志系统会在 init 结束后立即关闭
+    let _guard = logging::init()?;
 
     tracing::info!("[main] program start...");
     color_eyre::install()?;
@@ -32,14 +23,14 @@ async fn main() -> Res<()> {
         stdout(),
         SetCursorStyle::BlinkingBlock // 或者 BlinkingBar, BlinkingUnderline
     )?;
+    // console_subscriber::init();
 
-    let mut term: ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>> =
-        ratatui::init();
 
-    let mut app = core::runner::Runner::new();
-    app.run(&mut term).await?;
+    let args = Cli::parse();
+    let mut app = App::new(args);
+    app.run().await?;
 
     tracing::info!("[main] program ended");
     ratatui::restore();
-    color_eyre::Result::Ok(())
+    Ok(())
 }

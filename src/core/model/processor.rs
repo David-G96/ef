@@ -2,20 +2,19 @@ use crate::core::{
     cmd::Cmd,
     model::{
         AnyModel,
-        component::{ScrollList, input::InputBox},
+        component::{self, ScrollList, input::InputBox},
         selector::SelectModel,
     },
     msg::Msg,
-    // traits::Model,
 };
 use color_eyre::Result as Res;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     layout::{Layout, Position},
     macros::constraints,
-    style::Stylize,
+    style::{Style, Stylize as _},
     text::Line,
-    widgets::{Block, Widget as _},
+    widgets::{Block, Clear, Widget as _},
 };
 use std::{fmt::Write, path::PathBuf};
 
@@ -36,6 +35,7 @@ pub enum InProcess {
     Copy(InputBox),
     /// not yet impl
     Zip(),
+    /// not yet impl
     Rename,
 }
 
@@ -105,8 +105,6 @@ impl std::fmt::Write for ByteCounter {
 
 #[derive(Debug, Default)]
 pub struct Processor {
-    mid: ScrollList,
-    // mid_process : InProcess,
     left: ScrollList,
     left_proc: InProcess,
     right: ScrollList,
@@ -117,6 +115,8 @@ pub struct Processor {
 
     /// 用来指示列表切换是否被锁住了，当被锁住时，说明正在输入，应该使用input box逻辑
     is_editing: bool,
+
+    double_check: bool,
 }
 
 impl Processor {
@@ -148,6 +148,10 @@ impl Processor {
                             self.is_editing = false;
                             *self.curr_proc_mut() = InProcess::Delete;
                         }
+                        't' => {
+                            self.is_editing = false;
+                            *self.curr_proc_mut() = InProcess::Trash;
+                        }
                         'c' => {
                             self.is_editing = true;
                             *self.curr_proc_mut() = InProcess::Copy(Default::default());
@@ -169,15 +173,26 @@ impl Processor {
             }
             // This is actually Fn+Del on macOS!
             KeyCode::Delete => {
-                todo!()
+                // TODO:
             }
             KeyCode::Enter => {
-                return Ok(Cmd::Batch(vec![
-                    self.proc_into_cmd(&self.left_proc, &self.left),
-                    self.proc_into_cmd(&self.right_proc, &self.right),
-                ]));
+                if self.double_check {
+                    return Ok(Cmd::Seq(vec![
+                        self.proc_into_cmd(&self.left_proc, &self.left),
+                        self.proc_into_cmd(&self.right_proc, &self.right),
+                        Cmd::Exit,
+                    ]));
+                } else {
+                    self.double_check = true;
+                }
             }
-            KeyCode::Esc => return Ok(Cmd::Exit),
+            KeyCode::Esc => {
+                if self.double_check {
+                    self.double_check = false;
+                } else {
+                    return Ok(Cmd::Exit);
+                };
+            }
             _ => {}
         }
         Ok(Cmd::None)
@@ -191,6 +206,15 @@ impl Processor {
                 list.items.iter().map(|i| i.path.clone()).collect(),
                 PathBuf::from(to.input()),
             ),
+            InProcess::Copy(to) => Cmd::Copy(
+                list.items.iter().map(|i| i.path.clone()).collect(),
+                PathBuf::from(to.input()),
+            ),
+            InProcess::Move(to) => Cmd::Move(
+                list.items.iter().map(|i| i.path.clone()).collect(),
+                to.input().into(),
+            ),
+            InProcess::Trash => Cmd::Trash(list.items.iter().map(|i| i.path.clone()).collect()),
             _ => Cmd::None,
         }
     }
@@ -227,7 +251,7 @@ impl Processor {
                     format!("{} - {} ", side_name, proc)
                 }
             } else {
-                format!("{} - *{}", side_name, proc)
+                format!("{} -*{}", side_name, proc)
             }
         } else {
             format!("{} - {}", side_name, proc)
@@ -236,63 +260,6 @@ impl Processor {
             .render(area, buf);
     }
 }
-
-// impl Model for Processor {
-//     fn update(
-//         &mut self,
-//         msg: crate::core::msg::Msg,
-//         _: &crate::core::context::Context,
-//     ) -> crate::core::cmd::Cmd {
-//         match msg {
-//             Msg::Exit => Cmd::Exit,
-//             Msg::Key(key_event) => self
-//                 .handle_key_event(&key_event)
-//                 .unwrap_or_else(|e| Cmd::Error(e.to_string())),
-
-//             _ => Cmd::None,
-//         }
-//     }
-
-//     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-//         let instructions = Line::from(vec![
-//             " Delete ".into(),
-//             "<D>".blue().bold(),
-//             " Organize ".into(),
-//             "<O>".blue().bold(),
-//             " Quit ".into(),
-//             "<Q> ".blue().bold(),
-//         ]);
-
-//         let block = Block::bordered()
-//             // .title(Line::from("Processing...").centered())
-//             .title_bottom(instructions.centered())
-//             // .border_set(border::THICK)
-//             ;
-
-//         let inner_area = block.inner(area);
-//         block.render(area, buf);
-
-//         let columns = Layout::horizontal(constraints![==50%, ==50%]);
-//         let [left_area, right_area] = columns.areas(inner_area);
-
-//         self.render_list_panel(
-//             &self.left,
-//             &self.left_proc,
-//             !self.focus_right,
-//             "Left",
-//             left_area,
-//             buf,
-//         );
-//         self.render_list_panel(
-//             &self.right,
-//             &self.right_proc,
-//             self.focus_right,
-//             "Right",
-//             right_area,
-//             buf,
-//         );
-//     }
-// }
 
 impl AnyModel for Processor {
     type Cmd = crate::core::cmd::Cmd;
@@ -308,6 +275,8 @@ impl AnyModel for Processor {
         let instructions = Line::from(vec![
             " Delete ".into(),
             "<D>".blue().bold(),
+            " Trash ".into(),
+            "<T>".blue().bold(),
             " Organize ".into(),
             "<O>".blue().bold(),
             " Quit ".into(),
@@ -358,6 +327,27 @@ impl AnyModel for Processor {
                     1,
                 ));
             }
+        }
+
+        if self.double_check {
+            let horizontal = Layout::horizontal(constraints![==33%, ==34%, ==33%]).split(area);
+            let center_area =
+                Layout::vertical(constraints![==33%, ==34%, ==33%]).split(horizontal[1]);
+            let popup_area = center_area[1];
+            frame.render_widget(Clear, popup_area);
+
+            let popup = component::popup::Popup::new(
+                "Warn".into(),
+                format!(
+                    "Are you sure you want to:\n1.{}\n2.{}\n[enter] to continue.\n[esc] to cancel.",
+                    self.left_proc, self.right_proc
+                )
+                .into(),
+                Style::new().red(),
+                Style::new().white().bold(),
+                Style::new().red(),
+            );
+            frame.render_widget(popup, popup_area);
         }
 
         Ok(())

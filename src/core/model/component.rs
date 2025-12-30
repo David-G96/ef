@@ -3,6 +3,7 @@
 //!
 pub mod fps;
 pub mod input;
+pub mod popup;
 use std::collections::VecDeque;
 
 use ratatui::{

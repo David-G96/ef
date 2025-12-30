@@ -14,7 +14,7 @@ use ratatui::{DefaultTerminal, layout::Rect};
 
 use crate::core::model::AnyModel;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 struct EpochEnvelope<T> {
     /// if None, then ignore epoch and send anyway
     pub epoch: Option<u32>,
@@ -97,13 +97,20 @@ pub struct Runner {
     servicer: Servicer,
     context: Context,
     should_exit: bool,
+    dry_run: bool,
 }
 
 impl Runner {
     pub fn new() -> Self {
         Self {
+            dry_run: true,
             ..Default::default()
         }
+    }
+    
+    pub fn with_dry_run(mut self, dry_run: bool) -> Self {
+        self.dry_run = dry_run;
+        self
     }
 
     pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
@@ -170,12 +177,41 @@ impl Runner {
                 self.model_manager.change_model(Box::new(Processor::new(m)));
             }
             Cmd::Organize(items, target_path) => {
-                tracing::info!("[Runner] organize: {:?} -> {:?}", items, target_path);
+                tracing::info!("organize:{:?}->{:?}", &items, &target_path);
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path) {
+                        tracing::error!("Organize failed: {:?}", e);
+                    }
+            }
+            Cmd::Copy(items, target_path) => {
+                tracing::info!("copy:{:?}->{:?}", &items, &target_path);
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::copy(&items, &target_path) {
+                        tracing::error!("Copy failed: {:?}", e);
+                    }
+            }
+            Cmd::Move(items, target_path) => {
+                tracing::info!("move:{:?}->{:?}", &items, &target_path);
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path) {
+                        tracing::error!("Move failed: {:?}", e);
+                    }
             }
             Cmd::Delete(items) => {
-                tracing::info!("[Runner] delete: {:?}", items);
+                tracing::info!("delete:{:?}", &items);
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::delete(&items) {
+                        tracing::error!("Delete failed: {:?}", e);
+                    }
             }
-            Cmd::Batch(cmds) => {
+            Cmd::Trash(items) => {
+                tracing::info!("trash:{:?}", &items);
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::trash(&items) {
+                        tracing::error!("Trash failed: {:?}", e);
+                    }
+            }
+            Cmd::Seq(cmds) => {
                 for cmd in cmds {
                     self.handle_cmd(EpochEnvelope::new(cmd))
                 }
