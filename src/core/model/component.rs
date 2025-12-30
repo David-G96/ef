@@ -1,6 +1,6 @@
 //! Reusable common components for models
 //!
-//! 
+//!
 pub mod fps;
 pub mod input;
 use std::collections::VecDeque;
@@ -153,12 +153,22 @@ impl ScrollList {
         }
     }
 
-    pub fn render<'a>(
+    pub fn render_with_border<'a>(
         &'a self,
         is_focus: bool,
         index: Option<usize>,
-        tittle: &'a str,
+        title: &'a str,
     ) -> Paragraph<'a> {
+        let style = if is_focus {
+            Style::default().fg(style::Color::Yellow).bold()
+        } else {
+            style::Style::default().dim()
+        };
+        self.render(is_focus, index)
+            .block(Block::bordered().title(title).border_style(style))
+    }
+
+    pub fn render<'a>(&'a self, is_focus: bool, index: Option<usize>) -> Paragraph<'a> {
         let lines = self
             .items
             .iter()
@@ -171,12 +181,7 @@ impl ScrollList {
                 line
             })
             .collect::<Vec<Line>>();
-        let style = if is_focus {
-            Style::default().fg(style::Color::Yellow).bold()
-        } else {
-            style::Style::default().dim()
-        };
-        Paragraph::new(lines).block(Block::bordered().title(tittle).border_style(style))
+        Paragraph::new(lines)
     }
 }
 

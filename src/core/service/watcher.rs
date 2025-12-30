@@ -49,8 +49,6 @@ impl Watcher {
             tracing::info!("[Watcher] start watching: {:?}", current_path);
 
             loop {
-                // 修复：使用 blocking_recv 替代 try_recv。
-                // 这会让线程在没有命令时进入休眠状态，不再消耗 CPU。
                 match cmd_rx.blocking_recv() {
                     Some(WatchCommand::ChangeWatchPath(new_path)) => {
                         tracing::info!("[Watcher] changing path to: {:?}", new_path);

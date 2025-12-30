@@ -39,9 +39,10 @@ impl Listener {
                     match event::read() {
                         Ok(CrosstermEvent::Key(key)) => {
                             if key.kind == KeyEventKind::Press
-                                && tx.blocking_send(Msg::Key(key)).is_err() {
-                                    break;
-                                }
+                                && tx.blocking_send(Msg::Key(key)).is_err()
+                            {
+                                break;
+                            }
                         }
                         Ok(CrosstermEvent::Paste(paste_content)) => {
                             if tx.blocking_send(Msg::Paste(paste_content)).is_err() {
@@ -61,5 +62,10 @@ impl Listener {
         });
 
         Self { task, cmd_tx }
+    }
+
+    pub fn end(self) {
+        self.task.abort();
+        drop(self.cmd_tx);
     }
 }

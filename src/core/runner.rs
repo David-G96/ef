@@ -5,12 +5,14 @@ use crate::core::{
     context::Context,
     model::{processor::Processor, selector::SelectModel},
     msg::Msg,
-    services::servicer::Servicer,
-    traits::{AnyModel, Model},
+    service::servicer::Servicer,
+    // traits::{AnyModel, Model},
 };
 
 use color_eyre::{Result as Res, eyre::Ok};
 use ratatui::{DefaultTerminal, layout::Rect};
+
+use crate::core::model::AnyModel;
 
 #[derive(Debug, Default)]
 struct EpochEnvelope<T> {
@@ -37,19 +39,22 @@ impl<T> EpochEnvelope<T> {
 
 #[derive(Default)]
 struct EpochModel {
-    curr_model: Option<Box<dyn Model>>,
+    curr_model: Option<Box<dyn AnyModel<Context = Context, Cmd = Cmd, Msg = Msg>>>,
     curr_epoch: u32,
 }
 
 impl EpochModel {
-    pub fn new(model: Box<dyn Model>) -> Self {
+    pub fn new(model: Box<dyn AnyModel<Context = Context, Cmd = Cmd, Msg = Msg>>) -> Self {
         Self {
             curr_model: Some(model),
             curr_epoch: 0,
         }
     }
 
-    pub fn change_model(&mut self, model: Box<dyn Model>) {
+    pub fn change_model(
+        &mut self,
+        model: Box<dyn AnyModel<Context = Context, Cmd = Cmd, Msg = Msg>>,
+    ) {
         self.curr_model = Some(model);
         self.curr_epoch = self.curr_epoch.overflowing_add(1).0;
     }
@@ -62,7 +67,7 @@ impl EpochModel {
                     .map(|epoch| epoch == self.curr_epoch)
                     .unwrap_or(true) =>
             {
-                model.update(msg.payload, ctx)
+                model.update(&msg.payload, ctx)
             }
             _ => Cmd::None,
         };
@@ -73,9 +78,9 @@ impl EpochModel {
         }
     }
 
-    pub fn render(&mut self, area: Rect, buf: &mut ratatui::prelude::Buffer) {
+    pub fn render(&mut self, frame: &mut ratatui::prelude::Frame, area: Rect) {
         if let Some(model) = &mut self.curr_model {
-            model.render(area, buf);
+            _ = model.draw(frame, area)
         }
     }
 }
@@ -164,13 +169,24 @@ impl Runner {
             Cmd::IntoProcess(m) => {
                 self.model_manager.change_model(Box::new(Processor::new(m)));
             }
+            Cmd::Organize(items, target_path) => {
+                tracing::info!("[Runner] organize: {:?} -> {:?}", items, target_path);
+            }
+            Cmd::Delete(items) => {
+                tracing::info!("[Runner] delete: {:?}", items);
+            }
+            Cmd::Batch(cmds) => {
+                for cmd in cmds {
+                    self.handle_cmd(EpochEnvelope::new(cmd))
+                }
+            }
             _ => {}
         }
         // None
     }
 
     fn draw(&mut self, term: &mut DefaultTerminal) -> Res<()> {
-        term.draw(|f| self.model_manager.render(f.area(), f.buffer_mut()))?;
+        term.draw(|f| self.model_manager.render(f, f.area()))?;
         Ok(())
     }
 }

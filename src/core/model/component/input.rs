@@ -1,13 +1,14 @@
+use core::fmt;
+
 use ratatui::{
     style::{Color, Style},
-    widgets::{Block, Paragraph, Widget},
+    widgets::Paragraph,
 };
 
 #[derive(Debug, Default)]
 pub struct InputBox {
     input: String,
     char_index: usize,
-    is_editing: bool,
 }
 
 impl InputBox {
@@ -40,29 +41,27 @@ impl InputBox {
     }
 
     pub fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.char_index != 0;
-        if is_not_cursor_leftmost {
-            // Method "remove" is not used on the saved text for deleting the selected char.
-            // Reason: Using remove on String works on bytes instead of the chars.
-            // Using remove would require special care because of char boundaries.
+        if self.char_index > 0 {
+            let byte_idx = self.byte_index();
+            let prev_byte_idx = self
+                .input
+                .char_indices()
+                .filter(|(i, _)| *i < byte_idx)
+                .next_back()
+                .map(|(i, _)| i)
+                .unwrap_or(0);
 
-            let current_index = self.char_index;
-            let from_left_to_current_index = current_index - 1;
-
-            // Getting all characters before the selected character.
-            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
-            // Getting all characters after selected character.
-            let after_char_to_delete = self.input.chars().skip(current_index);
-
-            // Put all characters together except the selected one.
-            // By leaving the selected one out, it is forgotten and therefore deleted.
-            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.input.replace_range(prev_byte_idx..byte_idx, "");
             self.move_cursor_left();
         }
     }
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
         new_cursor_pos.clamp(0, self.input.chars().count())
+    }
+
+    pub fn input(&self) -> &str {
+        &self.input
     }
 
     pub fn as_paragraph(&'_ self, is_editing: bool) -> Paragraph<'_> {
@@ -72,5 +71,11 @@ impl InputBox {
             Style::default()
         })
         // .block(Block::bordered().title("Input"))
+    }
+}
+
+impl fmt::Display for InputBox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.input)
     }
 }

@@ -1,6 +1,6 @@
 use crate::core::{
     msg::Msg,
-    services::{listener::Listener, tasks::TaskManager, ticker::Ticker, watcher::Watcher},
+    service::{listener::Listener, tasks::TaskManager, ticker::Ticker, watcher::Watcher},
 };
 use tokio::sync::mpsc::{Receiver, Sender, channel};
 

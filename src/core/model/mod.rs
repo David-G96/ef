@@ -1,7 +1,7 @@
 // pub mod models;
 pub mod processor;
 pub mod selector;
-
+pub mod checker;
 pub mod component;
 
 pub trait Model {
@@ -18,7 +18,7 @@ pub trait AnyModel {
     type Msg;
     type Context;
 
-    fn update(&mut self, msg: &Self::Msg, ctx: &Self::Context) -> Option<Self::Cmd>;
+    fn update(&mut self, msg: &Self::Msg, ctx: &Self::Context) -> Self::Cmd;
     fn draw(
         &mut self,
         frame: &mut ratatui::Frame,

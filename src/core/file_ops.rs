@@ -17,10 +17,12 @@ pub fn save_file_content(path: &Path, content: &str) -> io::Result<()> {
     fs::write(path, content)
 }
 
+#[derive(Debug)]
 pub enum FileOpError {
     FileAlreadyExists(),
     DirAlreadyExists(),
 }
+
 
 pub fn organize<P: AsRef<Path>>(items: &[P], target_dir_path: &Path) -> Res<()> {
     // 1. 验证目标路径是否存在且为目录
