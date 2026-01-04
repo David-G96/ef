@@ -35,10 +35,6 @@ pub enum Msg {
         path: PathBuf,
         data: Vec<u8>,
     },
-    // FileSaved {
-    //     path: PathBuf,
-    //     result: Result<(), IoError>,
-    // },
     TaskState(TaskState),
 }
 
@@ -53,12 +49,13 @@ pub enum TaskStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TaskState {
     pub id: u64,
+    pub epoch: u32,
     pub status: TaskStatus,
 }
 
 impl TaskState {
-    pub fn new(id: u64, status: TaskStatus) -> Self {
-        Self { id, status }
+    pub fn new(id: u64, epoch: u32, status: TaskStatus) -> Self {
+        Self { id, epoch, status }
     }
 }
 

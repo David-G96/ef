@@ -9,15 +9,6 @@ use color_eyre::{
     eyre::{Context, bail},
 };
 
-// 这是一个纯函数，容易测试，与 UI 无关
-pub fn read_file_content(path: &Path) -> io::Result<String> {
-    fs::read_to_string(path)
-}
-
-pub fn save_file_content(path: &Path, content: &str) -> io::Result<()> {
-    fs::write(path, content)
-}
-
 pub fn organize<P: AsRef<Path>>(items: &[P], target_dir_path: &Path) -> Res<()> {
     // 构建最终的目标目录路径
     // let dest_dir = target_dir_path.join(dir_name);

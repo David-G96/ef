@@ -2,11 +2,12 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+/// The easy way to do
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
     /// Optional path to open
-  pub  path: Option<String>,
+    pub path: Option<String>,
 
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
@@ -14,7 +15,7 @@ pub struct Cli {
 
     /// Turn debugging information on
     #[arg(short, long, action = clap::ArgAction::Count)]
-   pub  debug: u8,
+    pub debug: u8,
 
     /// Do not actually perform any operations
     #[arg(short = 'n', long = "dry-run")]

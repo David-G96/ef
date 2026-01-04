@@ -24,15 +24,10 @@ impl TaskManager {
     }
 
     // 提交任务的方法
-    pub async fn submit<F>(&self, task_fn: F) -> u64
+    pub async fn submit<F>(&self, id: u64, epoch: u32, task_fn: F)
     where
         F: FnOnce() -> Result<(), String> + Send + 'static,
     {
-        // 生成唯一 ID
-        let id = self
-            .next_id
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
         // 初始化状态
         self.registry.insert(id, TaskStatus::Pending);
 
@@ -47,10 +42,13 @@ impl TaskManager {
 
             // 更新状态为处理中
             registry_clone.insert(id, TaskStatus::Processing(0.0));
-            let _ = tx_clone.send(Msg::TaskState(TaskState::new(
-                id,
-                TaskStatus::Processing(0.0),
-            )));
+            let _ = tx_clone
+                .send(Msg::TaskState(TaskState::new(
+                    id,
+                    epoch,
+                    TaskStatus::Processing(0.0),
+                )))
+                .await;
 
             // 在阻塞线程池中执行重型任务
             let result = tokio::task::spawn_blocking(task_fn).await;
@@ -64,11 +62,9 @@ impl TaskManager {
 
             registry_clone.insert(id, final_status.clone());
             let _ = tx_clone
-                .send(Msg::TaskState(TaskState::new(id, final_status)))
+                .send(Msg::TaskState(TaskState::new(id, epoch, final_status)))
                 .await;
         });
-
-        id
     }
 
     /// 清理已完成或失败的任务状态，防止内存泄漏
