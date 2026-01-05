@@ -1,7 +1,7 @@
 /target
 .idea/
 .DS_Store
-.VSCodeCounter/
+.VSCodeCounter
 .vscode/
 logs/
 .venv/

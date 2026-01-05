@@ -6,13 +6,12 @@ use crate::core::{
     model::{processor::Processor, selector::SelectModel},
     msg::Msg,
     service::servicer::Servicer,
-    // traits::{AnyModel, Model},
 };
 
 use color_eyre::{Result as Res, eyre::Ok};
 use ratatui::{DefaultTerminal, layout::Rect};
 
-use crate::core::model::AnyModel;
+use crate::core::model::Model;
 
 #[derive(Debug, Default, Clone, Copy)]
 struct EpochEnvelope<T> {
@@ -39,12 +38,12 @@ impl<T> EpochEnvelope<T> {
 
 #[derive(Default)]
 struct EpochModel {
-    curr_model: Option<Box<dyn AnyModel<Context = Context, Cmd = Cmd, Msg = Msg>>>,
+    curr_model: Option<Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>>,
     curr_epoch: u32,
 }
 
 impl EpochModel {
-    pub fn new(model: Box<dyn AnyModel<Context = Context, Cmd = Cmd, Msg = Msg>>) -> Self {
+    pub fn new(model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>) -> Self {
         Self {
             curr_model: Some(model),
             curr_epoch: 0,
@@ -53,7 +52,7 @@ impl EpochModel {
 
     pub fn change_model(
         &mut self,
-        model: Box<dyn AnyModel<Context = Context, Cmd = Cmd, Msg = Msg>>,
+        model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>,
     ) {
         self.curr_model = Some(model);
         self.curr_epoch = self.curr_epoch.overflowing_add(1).0;
@@ -87,7 +86,7 @@ impl EpochModel {
 
 impl Debug for EpochModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "")
+        write!(f, "{:?}", self.curr_epoch)
     }
 }
 
@@ -107,7 +106,7 @@ impl Runner {
             ..Default::default()
         }
     }
-    
+
     pub fn with_dry_run(mut self, dry_run: bool) -> Self {
         self.dry_run = dry_run;
         self
@@ -129,7 +128,7 @@ impl Runner {
         while let Some(msg) = self.servicer.recv().await {
             let mut should_redraw = self.handle_msg(msg);
 
-            // 3. 性能优化：排空当前队列中所有积压的消息，避免连续多次重绘
+            // 3. 排空当前队列中所有积压的消息，避免连续多次重绘
             while let Result::Ok(msg) = self.servicer.try_recv() {
                 if self.handle_msg(msg) {
                     should_redraw = true;
@@ -146,12 +145,13 @@ impl Runner {
             }
         }
 
+        ratatui::restore();
         Ok(())
     }
 
     /// redraw logic inside
     fn handle_msg(&mut self, msg: Msg) -> bool {
-        // 基础逻辑：Tick 默认不触发重绘（除非你有动画需求），其他事件触发重绘
+        // 基础逻辑：Tick 默认不触发重绘，其他事件触发重绘
         let should_redraw = match msg {
             Msg::Tick => true,
             _ => true,
@@ -179,37 +179,42 @@ impl Runner {
             Cmd::Organize(items, target_path) => {
                 tracing::info!("organize:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path) {
-                        tracing::error!("Organize failed: {:?}", e);
-                    }
+                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path)
+                {
+                    tracing::error!("Organize failed: {:?}", e);
+                }
             }
             Cmd::Copy(items, target_path) => {
                 tracing::info!("copy:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::copy(&items, &target_path) {
-                        tracing::error!("Copy failed: {:?}", e);
-                    }
+                    && let Err(e) = crate::core::file_ops::copy(&items, &target_path)
+                {
+                    tracing::error!("Copy failed: {:?}", e);
+                }
             }
             Cmd::Move(items, target_path) => {
                 tracing::info!("move:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path) {
-                        tracing::error!("Move failed: {:?}", e);
-                    }
+                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path)
+                {
+                    tracing::error!("Move failed: {:?}", e);
+                }
             }
             Cmd::Delete(items) => {
                 tracing::info!("delete:{:?}", &items);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::delete(&items) {
-                        tracing::error!("Delete failed: {:?}", e);
-                    }
+                    && let Err(e) = crate::core::file_ops::delete(&items)
+                {
+                    tracing::error!("Delete failed: {:?}", e);
+                }
             }
             Cmd::Trash(items) => {
                 tracing::info!("trash:{:?}", &items);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::trash(&items) {
-                        tracing::error!("Trash failed: {:?}", e);
-                    }
+                    && let Err(e) = crate::core::file_ops::trash(&items)
+                {
+                    tracing::error!("Trash failed: {:?}", e);
+                }
             }
             Cmd::Seq(cmds) => {
                 for cmd in cmds {

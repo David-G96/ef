@@ -25,9 +25,9 @@ pub struct FileItem {
 }
 
 impl FileItem {
-    pub fn as_line(&self) -> Line<'_> {
+    pub fn as_line(&self) -> Line<'static> {
         if self.is_dir {
-            Line::from(self.display_name.clone().blue())
+            Line::from(format!("{}/", &self.display_name).blue())
         } else {
             Line::from(self.display_name.clone())
         }
@@ -148,10 +148,33 @@ pub struct ScrollList {
 
 impl ScrollList {
     pub fn new(items: VecDeque<FileItem>) -> Self {
-        Self {
-            items,
-            state: ListState::default(),
+        let mut state = ListState::default();
+        if !items.is_empty() {
+            state.select(Some(0));
         }
+        Self { items, state }
+    }
+
+    pub fn up(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => i.saturating_sub(1),
+            None => 0,
+        };
+        self.state.select(Some(i));
+    }
+
+    pub fn down(&mut self) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= self.items.len().saturating_sub(1) {
+                    i
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
     }
 
     pub fn render_with_border<'a>(
@@ -197,31 +220,31 @@ impl Cursor {
         Self { focus, index: 0 }
     }
 
-    pub fn shift_down(self) -> Self {
-        Self {
-            index: self.index.saturating_add(1),
-            ..self
-        }
-    }
+    // pub fn shift_down(self) -> Self {
+    //     Self {
+    //         index: self.index.saturating_add(1),
+    //         ..self
+    //     }
+    // }
 
-    pub fn shift_up(self) -> Self {
-        Self {
-            index: self.index.saturating_sub(1),
-            ..self
-        }
-    }
+    // pub fn shift_up(self) -> Self {
+    //     Self {
+    //         index: self.index.saturating_sub(1),
+    //         ..self
+    //     }
+    // }
 
-    pub fn move_left(self) -> Self {
-        Self {
-            focus: self.focus.left(),
-            ..self
-        }
-    }
+    // pub fn move_left(self) -> Self {
+    //     Self {
+    //         focus: self.focus.left(),
+    //         ..self
+    //     }
+    // }
 
-    pub fn move_right(self) -> Self {
-        Self {
-            focus: self.focus.right(),
-            ..self
-        }
-    }
+    // pub fn move_right(self) -> Self {
+    //     Self {
+    //         focus: self.focus.right(),
+    //         ..self
+    //     }
+    // }
 }

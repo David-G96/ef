@@ -1,7 +1,7 @@
 use crate::core::{
     cmd::Cmd,
     model::{
-        AnyModel,
+        Model,
         component::{self, ScrollList, input::InputBox},
         selector::SelectModel,
     },
@@ -34,7 +34,7 @@ pub enum InProcess {
     /// alias 'c' 'cp'
     Copy(InputBox),
     /// not yet impl
-    Zip(),
+    Zip,
     /// not yet impl
     Rename,
 }
@@ -77,7 +77,6 @@ impl std::fmt::Display for InProcess {
             Organize(input) => write!(f, "Organize: {}", input),
             Move(input) => write!(f, "Move: {}", input),
             Copy(input) => write!(f, "Copy: {}", input),
-            Zip() => todo!(),
             x => write!(f, "{:?}", x),
         }
     }
@@ -165,6 +164,10 @@ impl Processor {
                         }
                     }
                 }
+            }
+            KeyCode::Tab => {
+                self.focus_right = !self.focus_right;
+                self.is_editing = false;
             }
             KeyCode::Backspace => {
                 if self.is_editing {
@@ -261,7 +264,7 @@ impl Processor {
     }
 }
 
-impl AnyModel for Processor {
+impl Model for Processor {
     type Cmd = crate::core::cmd::Cmd;
     type Msg = crate::core::msg::Msg;
     type Context = crate::core::context::Context;

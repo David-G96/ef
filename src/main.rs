@@ -12,7 +12,7 @@ async fn main() -> Res<()> {
     tracing::info!("[main] program start...");
 
     let args = Cli::parse();
-    let mut app = App::new(args);
+    let mut app = App::new(args)?;
     app.run().await?;
 
     tracing::info!("[main] program ended");

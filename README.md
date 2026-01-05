@@ -1,6 +1,6 @@
 # ef
 
-The simple item sorter
+A simple file item sorter.
 
 ## How to use
 

@@ -23,5 +23,6 @@ pub enum Cmd {
     Copy(Vec<PathBuf>, PathBuf),
     Trash(Vec<PathBuf>),
     Move(Vec<PathBuf>, PathBuf),
+    /// task
     Exit,
 }

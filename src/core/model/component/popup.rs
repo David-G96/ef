@@ -1,5 +1,3 @@
-// use derive_setters::Setters;
-// use lipsum::lipsum;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -10,7 +8,7 @@ use ratatui::{
 
 #[derive(Debug, Default)]
 pub struct Popup<'a> {
-   title: Line<'a>,
+    title: Line<'a>,
     content: Text<'a>,
     border_style: Style,
     title_style: Style,
@@ -18,13 +16,25 @@ pub struct Popup<'a> {
 }
 
 impl<'a> Popup<'a> {
-    pub fn new(title: Line<'a>, content: Text<'a>, border_style: Style, title_style: Style, style: Style) -> Self {
-        Self { title, content, border_style, title_style, style }
+    pub fn new(
+        title: Line<'a>,
+        content: Text<'a>,
+        border_style: Style,
+        title_style: Style,
+        style: Style,
+    ) -> Self {
+        Self {
+            title,
+            content,
+            border_style,
+            title_style,
+            style,
+        }
     }
 }
 
 impl Widget for Popup<'_> {
- fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         // ensure that all cells under the popup are cleared to avoid leaking content
         Clear.render(area, buf);
         let block = Block::new()

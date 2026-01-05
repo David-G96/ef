@@ -5,27 +5,7 @@ description = "A simple way to sort your file items."
 edition = "2024"
 
 [profile.dev]
-# 1. 分离调试信息 (macOS/Linux 尤其有效)
-# "unpacked" 避免了打包 debug info 的步骤，大幅减少 I/O 和时间
 split-debuginfo = "unpacked"
-
-# 2. 降低依赖的优化等级
-# 你的代码可能需要调试，但依赖库通常不需要。
-# 将依赖的优化等级设为 0 或 1，可以加快构建速度。
-opt-level = 0
-
-# 3. 减少 Debug 信息量
-# 默认是 2 (full)，改为 1 (line tables only) 或者 0 (none)。
-# 对于 CLI 工具，通常只需要行号就能定位 panic。
-debug = 1
-
-# 4. 增量编译 (默认开启，确保没有被误关)
-incremental = true
-
-[profile.dev.package."*"]
-# 强制所有依赖库进行最高级别的优化压缩（虽然第一次慢，但后续增量编译不需要重新编译依赖）
-# 或者设为 0 以追求极致的编译速度
-opt-level = 0
 
 [profile.release]
 codegen-units = 1 # Allows compiler to perform better optimization.
