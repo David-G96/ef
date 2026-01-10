@@ -8,6 +8,5 @@ A simple file item sorter.
 
 ## How to use
 
-The main idea which `ef` is based on is the **binary sort**.
-Open the dir you want to sort, then there will be three vertical lists: left, pending, right.
-All you need to do is to move the items left or right, then press `enter` to start process then.
+The main idea of `ef` is based on **binary sorting**.
+Open the dir you want to sort, move the items to left or right freely, then press `enter` to start process then.
