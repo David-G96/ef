@@ -91,9 +91,9 @@ Sleep 400ms
 Tab
 Sleep 300ms
 Type "d"
-Sleep 300ms
-Enter
 Sleep 500ms
+Enter
+Sleep 800ms
 Enter
 
 Sleep 200ms

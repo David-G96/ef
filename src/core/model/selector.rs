@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, env, path::PathBuf};
 
+use crate::core::file_ops::FileOperator;
 use crate::core::{
     cmd::Cmd,
     model::component::{Cursor, FileItem, Focus, History, ScrollList},
@@ -39,21 +40,9 @@ pub struct SelectModel {
 }
 
 impl SelectModel {
-    pub fn new() -> Res<Self> {
+    pub fn new(file_op: &FileOperator) -> Res<Self> {
         let current_path = env::current_dir()?;
-        let mut res: VecDeque<FileItem> = VecDeque::with_capacity(8);
-        let mut id = 0;
-        for entry in std::fs::read_dir(&current_path)? {
-            let entry = entry?;
-            let item = FileItem {
-                id,
-                path: entry.path(),
-                display_name: entry.file_name().to_string_lossy().to_string(),
-                is_dir: entry.file_type()?.is_dir(),
-            };
-            res.push_back(item);
-            id += 1;
-        }
+        let res = file_op.list_items(&current_path)?;
         Ok(Self::new_with(current_path, res))
     }
 

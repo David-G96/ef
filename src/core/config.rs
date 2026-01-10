@@ -3,7 +3,7 @@ use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Config {
     /// 帧率，默认为60
     pub frame_rate: f64,
@@ -12,6 +12,10 @@ pub struct Config {
     pub tick_rate: f64,
     /// 默认打开路径，默认为空，也就是当前目录wd
     pub default_path: Option<PathBuf>,
+    /// 是否显示隐藏文件
+    pub show_hidden: bool,
+    /// 是否尊重 gitignore
+    pub respect_gitignore: bool,
 }
 
 #[derive(Debug)]
@@ -34,7 +38,6 @@ impl Config {
     pub fn new() -> Self {
         Self::default()
     }
-
     pub fn parse_from_str(str: &str) -> Res<Self> {
         toml::from_str(str).map_err(|e| e.into())
     }
@@ -65,6 +68,8 @@ impl Default for Config {
             frame_rate: 60.0,
             tick_rate: 4.0,
             default_path: None,
+            show_hidden: false,
+            respect_gitignore: true,
         }
     }
 }

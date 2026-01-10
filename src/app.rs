@@ -1,4 +1,4 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::Result as Res;
 
 use crate::{
     cli::Cli,
@@ -10,33 +10,30 @@ use tracing_appender::non_blocking::WorkerGuard;
 #[derive(Debug)]
 pub struct App {
     term: ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>>,
-    config: Config,
     runner: Runner,
 }
 
 impl App {
-    pub fn new(args: Cli) -> Result<Self> {
+    pub fn new(args: Cli) -> Res<Self> {
         let config_status = Config::parse()?;
-
-        // 注意：此时日志系统尚未初始化，所以这里的 info! 不会记录到文件
+        match config_status {
+            crate::core::config::ConfigStatus::Loaded(_) => tracing::info!("loaded config"),
+            _ => tracing::info!("loaded config from default"),
+        }
         let config = config_status.config();
 
         Ok(Self {
             term: ratatui::init(),
-            runner: Runner::new().with_dry_run(args.dry_run),
-            config,
+            runner: Runner::new(config.clone()).with_dry_run(args.dry_run),
         })
     }
 
-    pub async fn run(&mut self) -> Result<()> {
+    pub async fn run(&mut self) -> Res<()> {
         crossterm::execute!(
             std::io::stdout(),
             crossterm::cursor::SetCursorStyle::BlinkingBlock // 或者 BlinkingBar, BlinkingUnderline
         )?;
         color_eyre::install()?;
-
-        // 必须持有 guard，否则日志系统会在 init 结束后立即关闭
-        let _guard = Self::log_init()?;
 
         tracing::info!("[App] app started");
 
@@ -62,7 +59,7 @@ impl App {
         Ok(guard)
     }
 
-    fn error_init() -> Result<()> {
+    fn error_init() -> Res<()> {
         color_eyre::install()?;
         Ok(())
     }

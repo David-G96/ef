@@ -8,6 +8,7 @@ use crate::core::{
     service::servicer::Servicer,
 };
 
+use crate::core::file_ops::FileOperator;
 use color_eyre::{Result as Res, eyre::Ok};
 use ratatui::{DefaultTerminal, layout::Rect};
 
@@ -37,12 +38,12 @@ impl<T> EpochEnvelope<T> {
 }
 
 #[derive(Default)]
-struct EpochModel {
+struct EpochGuard {
     curr_model: Option<Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>>,
     curr_epoch: u32,
 }
 
-impl EpochModel {
+impl EpochGuard {
     pub fn new(model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>) -> Self {
         Self {
             curr_model: Some(model),
@@ -50,10 +51,7 @@ impl EpochModel {
         }
     }
 
-    pub fn change_model(
-        &mut self,
-        model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>,
-    ) {
+    pub fn change_model(&mut self, model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>) {
         self.curr_model = Some(model);
         self.curr_epoch = self.curr_epoch.overflowing_add(1).0;
     }
@@ -84,7 +82,7 @@ impl EpochModel {
     }
 }
 
-impl Debug for EpochModel {
+impl Debug for EpochGuard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.curr_epoch)
     }
@@ -92,17 +90,21 @@ impl Debug for EpochModel {
 
 #[derive(Debug, Default)]
 pub struct Runner {
-    model_manager: EpochModel,
+    model_manager: EpochGuard,
     servicer: Servicer,
     context: Context,
     should_exit: bool,
     dry_run: bool,
+    file_op: FileOperator,
 }
 
 impl Runner {
-    pub fn new() -> Self {
+    pub fn new(config: crate::core::config::Config) -> Self {
+        let file_op = FileOperator::new(&config);
         Self {
             dry_run: true,
+            context: Context { config },
+            file_op,
             ..Default::default()
         }
     }
@@ -114,7 +116,7 @@ impl Runner {
 
     pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
         self.model_manager
-            .change_model(Box::new(SelectModel::new()?));
+            .change_model(Box::new(SelectModel::new(&self.file_op)?));
         self.servicer = Servicer::new()
             .with_listener()
             .with_watcher(env::current_dir()?)
@@ -179,7 +181,7 @@ impl Runner {
             Cmd::Organize(items, target_path) => {
                 tracing::info!("organize:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path)
+                    && let Err(e) = self.file_op.organize(&items, &target_path)
                 {
                     tracing::error!("Organize failed: {:?}", e);
                 }
@@ -187,7 +189,7 @@ impl Runner {
             Cmd::Copy(items, target_path) => {
                 tracing::info!("copy:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::copy(&items, &target_path)
+                    && let Err(e) = self.file_op.copy(&items, &target_path)
                 {
                     tracing::error!("Copy failed: {:?}", e);
                 }
@@ -195,7 +197,7 @@ impl Runner {
             Cmd::Move(items, target_path) => {
                 tracing::info!("move:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::organize(&items, &target_path)
+                    && let Err(e) = self.file_op.organize(&items, &target_path)
                 {
                     tracing::error!("Move failed: {:?}", e);
                 }
@@ -223,7 +225,6 @@ impl Runner {
             }
             _ => {}
         }
-        // None
     }
 
     fn draw(&mut self, term: &mut DefaultTerminal) -> Res<()> {

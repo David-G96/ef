@@ -3,15 +3,6 @@ pub mod component;
 pub mod processor;
 pub mod selector;
 
-// pub trait Model {
-//     fn render(&mut self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer);
-//     fn update(
-//         &mut self,
-//         msg: crate::core::msg::Msg,
-//         ctx: &crate::core::context::Context,
-//     ) -> crate::core::cmd::Cmd;
-// }
-
 pub trait Model {
     type Cmd;
     type Msg;
