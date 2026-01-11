@@ -1,4 +1,3 @@
-use crate::core::config::Config;
 use crate::core::model::component::FileItem;
 use std::collections::{HashSet, VecDeque};
 use std::fs;

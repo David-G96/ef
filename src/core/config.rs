@@ -1,5 +1,4 @@
 use color_eyre::Result as Res;
-use directories::BaseDirs;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -51,14 +50,25 @@ impl Config {
     /// parse from the default config path
     /// Err if config content error.
     pub fn parse() -> Res<ConfigStatus> {
-        let config_path =
-            BaseDirs::new().map(|base| base.config_dir().join("ef").join("config.toml"));
+        use etcetera::app_strategy::{AppStrategy, AppStrategyArgs, Xdg};
+
+        // 1. 定义应用策略参数
+        let args = AppStrategyArgs {
+            top_level_domain: "com".to_string(), // 这俩都仅在某些策略中用到，应该不用担心
+            author: "ef_author".to_string(),
+            app_name: "ef".to_string(),
+        };
+
+        // 2. 显式使用 Xdg 策略（确保在 macOS 上使用 ~/.config/ef）
+        let config_path = Xdg::new(args)
+            .ok()
+            .map(|strategy| strategy.config_dir().join("config.toml"));
 
         if let Some(path) = config_path.as_ref().filter(|p| p.exists()) {
             return Ok(ConfigStatus::Loaded(Self::parse_from_path(path)?));
         }
 
-        Ok(ConfigStatus::Default(Self::default()))
+        Ok(ConfigStatus::Default(Self::new()))
     }
 }
 
@@ -86,6 +96,25 @@ mod test {
         let config: Config = toml::from_str(config_file).expect("failed to parse config content");
         let expected = Config::new();
 
+        assert_eq!(expected, config);
+    }
+
+    #[test]
+    fn test_config_parse_full() {
+        let config_str = r#"frame_rate = 10.0
+tick_rate = 4.0
+default_path = "/Users/davidgao/Desktop/final/"
+show_hidden = true
+respect_gitignore = true"#;
+
+        let config: Config = toml::from_str(config_str).expect("failed to parse config str");
+        let expected = Config {
+            frame_rate: 10.0,
+            tick_rate: 4.0,
+            default_path: PathBuf::from("/Users/davidgao/Desktop/final/").into(),
+            show_hidden: true,
+            respect_gitignore: true,
+        };
         assert_eq!(expected, config);
     }
 

@@ -1,8 +1,7 @@
 use std::env::home_dir;
-use std::path::Path;
-use std::{collections::VecDeque, env, path::PathBuf};
+use std::{collections::VecDeque, path::PathBuf};
 
-use crate::core::file_ops::{self, FileOperator};
+use crate::core::file_ops::{self};
 use crate::core::{
     cmd::Cmd,
     model::component::{Cursor, FileItem, History, ListType, ScrollList},

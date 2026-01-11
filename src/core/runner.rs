@@ -1,5 +1,5 @@
 use std::{
-    env::{self, current_dir},
+    env::current_dir,
     fmt::Debug,
 };
 
