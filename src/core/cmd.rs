@@ -6,8 +6,6 @@ use crate::core::model::{component::ScrollList, selector::SelectModel};
 pub enum Cmd {
     #[default]
     None,
-    SuggestRerender,
-    SuggestNoRerender,
     Error(String),
     // QueryFileType(PathBuf),
     /// Sequential commands

@@ -34,6 +34,7 @@ impl Servicer {
         self
     }
 
+
     /// 启用文件观察服务
     pub fn with_watcher(mut self, path: std::path::PathBuf) -> Self {
         self.watcher = Some(Watcher::new(self.msg_tx.clone(), path));

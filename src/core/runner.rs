@@ -1,4 +1,7 @@
-use std::{env, fmt::Debug};
+use std::{
+    env::{self, current_dir},
+    fmt::Debug,
+};
 
 use crate::core::{
     cmd::Cmd,
@@ -95,16 +98,13 @@ pub struct Runner {
     context: Context,
     should_exit: bool,
     dry_run: bool,
-    // file_op: FileOperator,
 }
 
 impl Runner {
     pub fn new(config: crate::core::config::Config) -> Self {
-        // let file_op = FileOperator::new(&config);
         Self {
             dry_run: true,
             context: Context { config },
-            // file_op,
             ..Default::default()
         }
     }
@@ -115,14 +115,21 @@ impl Runner {
     }
 
     pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
+        let init_path = self
+            .context
+            .config
+            .default_path
+            .clone()
+            .map_or_else(current_dir, Ok)?;
         self.model_manager.change_model(Box::new(SelectModel::new(
-            // &self.file_op,
+            init_path.clone(),
             self.context.config.show_hidden,
             self.context.config.respect_gitignore,
         )?));
+        // 默认不开启watcher
         self.servicer = Servicer::new()
             .with_listener()
-            .with_watcher(env::current_dir()?)
+            .with_watcher(init_path.clone())
             .with_ticker(4.0)
             .with_task_manager(8);
 
@@ -251,8 +258,7 @@ impl Runner {
                 );
             }
             Cmd::LoadDir(path) => {
-                match file_ops::list_items(&path, self.context.config.respect_gitignore)
-                {
+                match file_ops::list_items(&path, self.context.config.respect_gitignore) {
                     Ok(items) => {
                         let msg = Msg::DirLoaded(path, items);
                         let envelope = self
@@ -263,7 +269,6 @@ impl Runner {
                     Err(e) => tracing::error!("Failed to load dir: {:?}", e),
                 }
             }
-            Cmd::SuggestNoRerender => {}
             _ => {}
         }
     }

@@ -1,4 +1,5 @@
 use std::env::home_dir;
+use std::path::Path;
 use std::{collections::VecDeque, env, path::PathBuf};
 
 use crate::core::file_ops::{self, FileOperator};
@@ -47,8 +48,7 @@ pub struct SelectModel {
 }
 
 impl SelectModel {
-    pub fn new( show_hidden: bool, respect_gitignore: bool) -> Res<Self> {
-        let current_path = env::current_dir()?;
+    pub fn new(current_path: PathBuf, show_hidden: bool, respect_gitignore: bool) -> Res<Self> {
         let res = file_ops::list_items(&current_path, respect_gitignore)?;
         let mut model = Self::new_with(current_path, res);
         model.show_hidden = show_hidden;
@@ -72,7 +72,8 @@ impl SelectModel {
     }
 
     fn sync_view(&mut self) {
-        let filtered: VecDeque<_> = self.all_items
+        let filtered: VecDeque<_> = self
+            .all_items
             .iter()
             .filter(|item| self.show_hidden || !item.display_name.starts_with('.'))
             .cloned()
@@ -258,10 +259,7 @@ impl crate::core::model::Model for SelectModel {
             self.path.to_string_lossy().to_string()
         };
 
-        let status_left = Line::from(vec![
-            " ".into(),
-            path_display.into(),
-        ]);
+        let status_left = Line::from(vec![" ".into(), path_display.into()]);
 
         let status_right = Line::from(vec![
             format!(" {} items ", self.mid.items.len()).into(),
@@ -310,11 +308,7 @@ impl crate::core::model::Model for SelectModel {
         );
         // mid - pending
         StatefulWidget::render(
-            Self::as_list(
-                &self.mid,
-                self.cursor.focus == ListType::Mid,
-                "Pending",
-            ),
+            Self::as_list(&self.mid, self.cursor.focus == ListType::Mid, "Pending"),
             mid_area,
             buf,
             &mut self.mid.state,
@@ -339,7 +333,10 @@ impl crate::core::model::Model for SelectModel {
                 if *path == self.path {
                     // 去重逻辑：剔除已经在 Left 或 Right 列表中的文件
                     let mut new_items = items.clone();
-                    let pending_names: std::collections::HashSet<_> = self.left.items.iter()
+                    let pending_names: std::collections::HashSet<_> = self
+                        .left
+                        .items
+                        .iter()
                         .chain(self.right.items.iter())
                         .map(|i| i.display_name.clone())
                         .collect();
