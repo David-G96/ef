@@ -10,7 +10,10 @@ pub enum Cmd {
     SuggestNoRerender,
     Error(String),
     // QueryFileType(PathBuf),
+    /// Sequential commands
     Seq(Vec<Self>),
+    /// Not sequential commands
+    Batch(Vec<Self>),
     IntoProcess(SelectModel),
     IntoSelect(
         PathBuf,

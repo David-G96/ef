@@ -8,7 +8,7 @@ use crate::core::{
     service::servicer::Servicer,
 };
 
-use crate::core::file_ops::FileOperator;
+use crate::core::file_ops;
 use color_eyre::Result as Res;
 use ratatui::{DefaultTerminal, layout::Rect};
 
@@ -95,16 +95,16 @@ pub struct Runner {
     context: Context,
     should_exit: bool,
     dry_run: bool,
-    file_op: FileOperator,
+    // file_op: FileOperator,
 }
 
 impl Runner {
     pub fn new(config: crate::core::config::Config) -> Self {
-        let file_op = FileOperator::new(&config);
+        // let file_op = FileOperator::new(&config);
         Self {
             dry_run: true,
             context: Context { config },
-            file_op,
+            // file_op,
             ..Default::default()
         }
     }
@@ -115,8 +115,11 @@ impl Runner {
     }
 
     pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
-        self.model_manager
-            .change_model(Box::new(SelectModel::new(&self.file_op)?));
+        self.model_manager.change_model(Box::new(SelectModel::new(
+            // &self.file_op,
+            self.context.config.show_hidden,
+            self.context.config.respect_gitignore,
+        )?));
         self.servicer = Servicer::new()
             .with_listener()
             .with_watcher(env::current_dir()?)
@@ -180,7 +183,11 @@ impl Runner {
             Cmd::Organize(items, target_path) => {
                 tracing::info!("organize:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = self.file_op.organize(&items, &target_path)
+                    && let Err(e) = file_ops::organize(
+                        &items,
+                        &target_path,
+                        self.context.config.respect_gitignore,
+                    )
                 {
                     tracing::error!("Organize failed: {:?}", e);
                 }
@@ -188,7 +195,8 @@ impl Runner {
             Cmd::Copy(items, target_path) => {
                 tracing::info!("copy:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = self.file_op.copy(&items, &target_path)
+                    && let Err(e) =
+                        file_ops::copy(&items, &target_path, self.context.config.respect_gitignore)
                 {
                     tracing::error!("Copy failed: {:?}", e);
                 }
@@ -196,7 +204,11 @@ impl Runner {
             Cmd::Move(items, target_path) => {
                 tracing::info!("move:{:?}->{:?}", &items, &target_path);
                 if !self.dry_run
-                    && let Err(e) = self.file_op.organize(&items, &target_path)
+                    && let Err(e) = file_ops::organize(
+                        &items,
+                        &target_path,
+                        self.context.config.respect_gitignore,
+                    )
                 {
                     tracing::error!("Move failed: {:?}", e);
                 }
@@ -222,30 +234,36 @@ impl Runner {
                     self.handle_cmd(EpochEnvelope::new(cmd))
                 }
             }
+            Cmd::Batch(cmds) => {
+                cmds.into_iter().for_each(|cmd: Cmd| {
+                    self.handle_cmd(EpochEnvelope::new(cmd));
+                });
+            }
             Cmd::ToggleShowHidden => {
                 self.context.config.show_hidden = !self.context.config.show_hidden;
-                self.file_op = FileOperator::new(&self.context.config);
                 tracing::info!("Toggle show_hidden: {}", self.context.config.show_hidden);
             }
             Cmd::ToggleRespectGitIgnore => {
                 self.context.config.respect_gitignore = !self.context.config.respect_gitignore;
-                self.file_op = FileOperator::new(&self.context.config);
                 tracing::info!(
                     "Toggle respect_gitignore: {}",
                     self.context.config.respect_gitignore
                 );
-
             }
-            Cmd::LoadDir(path) => match self.file_op.list_items(&path) {
-                Ok(items) => {
-                    let msg = Msg::DirLoaded(path, items);
-                    let envelope = self
-                        .model_manager
-                        .update(EpochEnvelope::new(msg), &self.context);
-                    self.handle_cmd(envelope);
+            Cmd::LoadDir(path) => {
+                match file_ops::list_items(&path, self.context.config.respect_gitignore)
+                {
+                    Ok(items) => {
+                        let msg = Msg::DirLoaded(path, items);
+                        let envelope = self
+                            .model_manager
+                            .update(EpochEnvelope::new(msg), &self.context);
+                        self.handle_cmd(envelope);
+                    }
+                    Err(e) => tracing::error!("Failed to load dir: {:?}", e),
                 }
-                Err(e) => tracing::error!("Failed to load dir: {:?}", e),
-            },
+            }
+            Cmd::SuggestNoRerender => {}
             _ => {}
         }
     }

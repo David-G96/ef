@@ -20,8 +20,9 @@ use std::{fmt::Write, path::PathBuf};
 
 #[derive(Debug, Default)]
 pub enum InProcess {
-    /// alias 'n'
     #[default]
+    Waiting,
+    /// alias 'n'
     None,
     /// alias 'd'
     Delete,
@@ -71,7 +72,7 @@ impl std::fmt::Display for InProcess {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use InProcess::*;
         match self {
-            None => write!(f, ""),
+            None => write!(f, "None"),
             Delete => write!(f, "Delete"),
             Trash => write!(f, "Trash"),
             Organize(input) => write!(f, "Organize: {}", input),
@@ -159,6 +160,10 @@ impl Processor {
                             self.is_editing = true;
                             *self.curr_proc_mut() = InProcess::Move(Default::default());
                         }
+                        'n' => {
+                            self.is_editing = false;
+                            *self.curr_proc_mut() = InProcess::None;
+                        }
                         _ => {
                             self.is_editing = false;
                         }
@@ -174,15 +179,13 @@ impl Processor {
                     self.curr_proc_mut().try_delete();
                 }
             }
-            // This is actually Fn+Del on macOS!
-            KeyCode::Delete => {
-                // TODO:
-            }
             KeyCode::Enter => {
                 if self.double_check {
                     return Ok(Cmd::Seq(vec![
-                        self.proc_into_cmd(&self.left_proc, &self.left),
-                        self.proc_into_cmd(&self.right_proc, &self.right),
+                        Cmd::Batch(vec![
+                            Self::proc_into_cmd(&self.left_proc, &self.left),
+                            Self::proc_into_cmd(&self.right_proc, &self.right),
+                        ]),
                         Cmd::Exit,
                     ]));
                 } else {
@@ -201,7 +204,7 @@ impl Processor {
         Ok(Cmd::None)
     }
 
-    fn proc_into_cmd(&self, proc: &InProcess, list: &ScrollList) -> Cmd {
+    fn proc_into_cmd(proc: &InProcess, list: &ScrollList) -> Cmd {
         match proc {
             InProcess::None => Cmd::None,
             InProcess::Delete => Cmd::Delete(list.items.iter().map(|f| f.path.clone()).collect()),
@@ -286,11 +289,8 @@ impl Model for Processor {
             "<Q> ".blue().bold(),
         ]);
 
-        let block = Block::bordered()
-            // .title(Line::from("Processing...").centered())
-            .title_bottom(instructions.centered())
-            // .border_set(border::THICK)
-            ;
+        
+        let block = Block::bordered().title_bottom(instructions.centered());
 
         let inner_area = block.inner(area);
         block.render(area, buf);

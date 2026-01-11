@@ -1,8 +1,7 @@
 use std::env::home_dir;
 use std::{collections::VecDeque, env, path::PathBuf};
-use std::{fs, os};
 
-use crate::core::file_ops::FileOperator;
+use crate::core::file_ops::{self, FileOperator};
 use crate::core::{
     cmd::Cmd,
     model::component::{Cursor, FileItem, History, ListType, ScrollList},
@@ -37,6 +36,7 @@ pub enum SelectOperation {
 #[derive(Debug, Default, Clone)]
 pub struct SelectModel {
     pub(crate) path: PathBuf,
+    pub(crate) all_items: VecDeque<FileItem>,
     pub(crate) mid: ScrollList,
     pub(crate) left: ScrollList,
     pub(crate) right: ScrollList,
@@ -47,18 +47,20 @@ pub struct SelectModel {
 }
 
 impl SelectModel {
-    pub fn new(file_op: &FileOperator) -> Res<Self> {
+    pub fn new( show_hidden: bool, respect_gitignore: bool) -> Res<Self> {
         let current_path = env::current_dir()?;
-        let res = file_op.list_items(&current_path)?;
+        let res = file_ops::list_items(&current_path, respect_gitignore)?;
         let mut model = Self::new_with(current_path, res);
-        model.show_hidden = file_op.show_hidden;
-        model.respect_gitignore = file_op.respect_gitignore;
+        model.show_hidden = show_hidden;
+        model.respect_gitignore = respect_gitignore;
+        model.sync_view();
         Ok(model)
     }
 
     fn new_with(path: PathBuf, pending: VecDeque<FileItem>) -> Self {
         Self {
             path,
+            all_items: pending.clone(),
             mid: ScrollList::new(pending),
             left: ScrollList::default(),
             right: ScrollList::default(),
@@ -67,6 +69,15 @@ impl SelectModel {
             show_hidden: false,
             respect_gitignore: true,
         }
+    }
+
+    fn sync_view(&mut self) {
+        let filtered: VecDeque<_> = self.all_items
+            .iter()
+            .filter(|item| self.show_hidden || !item.display_name.starts_with('.'))
+            .cloned()
+            .collect();
+        self.mid = ScrollList::new(filtered);
     }
 
     fn get_list_mut(&mut self, list_type: ListType) -> &mut ScrollList {
@@ -205,10 +216,8 @@ impl SelectModel {
             KeyCode::Tab => {}
             KeyCode::Char('.') => {
                 self.show_hidden = !self.show_hidden;
-                return Ok(Cmd::Seq(vec![
-                    Cmd::ToggleShowHidden,
-                    Cmd::LoadDir(self.path.clone()),
-                ]));
+                self.sync_view();
+                return Ok(Cmd::ToggleShowHidden);
             }
             KeyCode::Char('g') => {
                 self.respect_gitignore = !self.respect_gitignore;
@@ -237,9 +246,21 @@ impl crate::core::model::Model for SelectModel {
         let [main_area, status_area] =
             Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(area);
 
+        let path_display = if let Some(home) = home_dir() {
+            if self.path == home {
+                "~".to_string()
+            } else if let Ok(stripped) = self.path.strip_prefix(&home) {
+                format!("~/{}", stripped.display())
+            } else {
+                self.path.to_string_lossy().to_string()
+            }
+        } else {
+            self.path.to_string_lossy().to_string()
+        };
+
         let status_left = Line::from(vec![
             " ".into(),
-            self.path.to_string_lossy().to_string().into(),
+            path_display.into(),
         ]);
 
         let status_right = Line::from(vec![
@@ -292,7 +313,7 @@ impl crate::core::model::Model for SelectModel {
             Self::as_list(
                 &self.mid,
                 self.cursor.focus == ListType::Mid,
-                "<== Pending ==>",
+                "Pending",
             ),
             mid_area,
             buf,
@@ -316,7 +337,15 @@ impl crate::core::model::Model for SelectModel {
                 .unwrap_or_else(|e| Cmd::Error(e.to_string())),
             Msg::DirLoaded(path, items) => {
                 if *path == self.path {
-                    self.mid = ScrollList::new(items.clone());
+                    // 去重逻辑：剔除已经在 Left 或 Right 列表中的文件
+                    let mut new_items = items.clone();
+                    let pending_names: std::collections::HashSet<_> = self.left.items.iter()
+                        .chain(self.right.items.iter())
+                        .map(|i| i.display_name.clone())
+                        .collect();
+                    new_items.retain(|i| !pending_names.contains(&i.display_name));
+                    self.all_items = new_items;
+                    self.sync_view();
                 }
                 Cmd::None
             }
