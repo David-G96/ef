@@ -1,4 +1,6 @@
+use std::env::home_dir;
 use std::{collections::VecDeque, env, path::PathBuf};
+use std::{fs, os};
 
 use crate::core::file_ops::FileOperator;
 use crate::core::{
@@ -7,13 +9,14 @@ use crate::core::{
     msg::Msg,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::layout::Constraint;
 use ratatui::macros::constraints;
 use ratatui::style::{self, Style};
 use ratatui::{
     layout::Layout,
     style::Stylize,
     text::Line,
-    widgets::{Block, List, StatefulWidget, Widget as _},
+    widgets::{Block, List, Paragraph, StatefulWidget, Widget as _},
 };
 
 use color_eyre::Result as Res;
@@ -39,13 +42,18 @@ pub struct SelectModel {
     pub(crate) right: ScrollList,
     pub(crate) cursor: Cursor,
     pub(crate) history: History<SelectOperation>,
+    pub(crate) show_hidden: bool,
+    pub(crate) respect_gitignore: bool,
 }
 
 impl SelectModel {
     pub fn new(file_op: &FileOperator) -> Res<Self> {
         let current_path = env::current_dir()?;
         let res = file_op.list_items(&current_path)?;
-        Ok(Self::new_with(current_path, res))
+        let mut model = Self::new_with(current_path, res);
+        model.show_hidden = file_op.show_hidden;
+        model.respect_gitignore = file_op.respect_gitignore;
+        Ok(model)
     }
 
     fn new_with(path: PathBuf, pending: VecDeque<FileItem>) -> Self {
@@ -56,6 +64,8 @@ impl SelectModel {
             right: ScrollList::default(),
             history: History::default(),
             cursor: Cursor::new(ListType::Mid),
+            show_hidden: false,
+            respect_gitignore: true,
         }
     }
 
@@ -167,7 +177,9 @@ impl SelectModel {
         } else {
             style::Style::default()
         };
-        let block = Block::bordered().title(Line::from(title).centered()).border_style(list_style);
+        let block = Block::bordered()
+            .title(Line::from(title).centered())
+            .border_style(list_style);
         list.block(block)
     }
 
@@ -192,12 +204,14 @@ impl SelectModel {
             KeyCode::Enter => return Ok(Cmd::IntoProcess(self.clone())),
             KeyCode::Tab => {}
             KeyCode::Char('.') => {
+                self.show_hidden = !self.show_hidden;
                 return Ok(Cmd::Seq(vec![
                     Cmd::ToggleShowHidden,
                     Cmd::LoadDir(self.path.clone()),
                 ]));
             }
             KeyCode::Char('g') => {
+                self.respect_gitignore = !self.respect_gitignore;
                 return Ok(Cmd::Seq(vec![
                     Cmd::ToggleRespectGitIgnore,
                     Cmd::LoadDir(self.path.clone()),
@@ -219,29 +233,52 @@ impl crate::core::model::Model for SelectModel {
         area: ratatui::layout::Rect,
     ) -> color_eyre::Result<()> {
         let buf = frame.buffer_mut();
-        let instructions = Line::from(vec![
-            " Move Left ".into(),
-            "<LEFT>".blue().bold(),
-            " Move Right ".into(),
-            "<RIGHT>".blue().bold(),
-            "ctrl + <Z>".into(),
-            " undo ".into(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
+
+        let [main_area, status_area] =
+            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(area);
+
+        let status_left = Line::from(vec![
+            " ".into(),
+            self.path.to_string_lossy().to_string().into(),
         ]);
 
-        let title = Line::from(self.path.to_string_lossy().to_string());
+        let status_right = Line::from(vec![
+            format!(" {} items ", self.mid.items.len()).into(),
+            "|".into(),
+            " Hidden: ".into(),
+            if self.show_hidden {
+                "SHOW".green().bold()
+            } else {
+                "HIDE".red().bold()
+            },
+            " Git: ".into(),
+            if self.respect_gitignore {
+                "ON".green().bold()
+            } else {
+                "OFF".red().bold()
+            },
+            " ".into(),
+        ]);
 
-        let block = Block::bordered()
-            .title(title.centered().bold().blue())
-            .title_bottom(instructions.centered())
-            .border_set(ratatui::symbols::border::THICK);
+        let status_style = Style::default().bg(ratatui::style::Color::DarkGray);
+        Block::default()
+            .style(status_style)
+            .render(status_area, buf);
 
-        let inner_area = block.inner(area);
-        block.render(area, buf);
+        let [left_status, right_status] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas(status_area);
+
+        Paragraph::new(status_left)
+            .style(status_style)
+            .render(left_status, buf);
+        Paragraph::new(status_right)
+            .right_aligned()
+            .style(status_style)
+            .render(right_status, buf);
 
         let columns = Layout::horizontal(constraints![==33%, == 34%, ==33%]);
-        let [left_area, mid_area, right_area] = columns.areas(inner_area);
+        let [left_area, mid_area, right_area] = columns.areas(main_area);
 
         // left
         StatefulWidget::render(
@@ -252,7 +289,11 @@ impl crate::core::model::Model for SelectModel {
         );
         // mid - pending
         StatefulWidget::render(
-            Self::as_list(&self.mid, self.cursor.focus == ListType::Mid, "<== Pending ==>"),
+            Self::as_list(
+                &self.mid,
+                self.cursor.focus == ListType::Mid,
+                "<== Pending ==>",
+            ),
             mid_area,
             buf,
             &mut self.mid.state,
