@@ -31,13 +31,6 @@ impl<T> EpochEnvelope<T> {
             payload,
         }
     }
-
-    pub fn new_with_epoch(payload: T, epoch: u32) -> Self {
-        Self {
-            epoch: Some(epoch),
-            payload,
-        }
-    }
 }
 
 #[derive(Default)]
@@ -47,13 +40,6 @@ struct EpochGuard {
 }
 
 impl EpochGuard {
-    pub fn new(model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>) -> Self {
-        Self {
-            curr_model: Some(model),
-            curr_epoch: 0,
-        }
-    }
-
     pub fn change_model(&mut self, model: Box<dyn Model<Context = Context, Cmd = Cmd, Msg = Msg>>) {
         self.curr_model = Some(model);
         self.curr_epoch = self.curr_epoch.overflowing_add(1).0;

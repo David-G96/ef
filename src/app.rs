@@ -1,5 +1,4 @@
 use color_eyre::eyre::Result as Res;
-use tracing_appender::non_blocking::WorkerGuard;
 
 use crate::{
     cli::Cli,
@@ -42,5 +41,4 @@ impl App {
         tracing::info!("[App] app ended");
         Ok(())
     }
-
 }
