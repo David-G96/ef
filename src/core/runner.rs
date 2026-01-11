@@ -9,7 +9,7 @@ use crate::core::{
 };
 
 use crate::core::file_ops::FileOperator;
-use color_eyre::{Result as Res, eyre::Ok};
+use color_eyre::Result as Res;
 use ratatui::{DefaultTerminal, layout::Rect};
 
 use crate::core::model::Model;
@@ -151,7 +151,6 @@ impl Runner {
         Ok(())
     }
 
-    /// redraw logic inside
     fn handle_msg(&mut self, msg: Msg) -> bool {
         // 基础逻辑：Tick 默认不触发重绘，其他事件触发重绘
         let should_redraw = match msg {
@@ -223,6 +222,30 @@ impl Runner {
                     self.handle_cmd(EpochEnvelope::new(cmd))
                 }
             }
+            Cmd::ToggleShowHidden => {
+                self.context.config.show_hidden = !self.context.config.show_hidden;
+                self.file_op = FileOperator::new(&self.context.config);
+                tracing::info!("Toggle show_hidden: {}", self.context.config.show_hidden);
+            }
+            Cmd::ToggleRespectGitIgnore => {
+                self.context.config.respect_gitignore = !self.context.config.respect_gitignore;
+                self.file_op = FileOperator::new(&self.context.config);
+                tracing::info!(
+                    "Toggle respect_gitignore: {}",
+                    self.context.config.respect_gitignore
+                );
+
+            }
+            Cmd::LoadDir(path) => match self.file_op.list_items(&path) {
+                Ok(items) => {
+                    let msg = Msg::DirLoaded(path, items);
+                    let envelope = self
+                        .model_manager
+                        .update(EpochEnvelope::new(msg), &self.context);
+                    self.handle_cmd(envelope);
+                }
+                Err(e) => tracing::error!("Failed to load dir: {:?}", e),
+            },
             _ => {}
         }
     }

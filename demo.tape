@@ -60,7 +60,7 @@ Output demo.gif
 Set Theme "Aardvark Blue"
 Set Width 1600
 Set Height 1200
-Set PlaybackSpeed 0.7
+Set PlaybackSpeed 0.5
 
 Hide
 Type "cargo run -q -- -n"
@@ -93,7 +93,5 @@ Sleep 300ms
 Type "d"
 Sleep 500ms
 Enter
-Sleep 800ms
+Sleep 500ms
 Enter
-
-Sleep 200ms

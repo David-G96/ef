@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
+use crate::core::model::component::FileItem;
 use crossterm::event::{KeyEvent, MouseEvent};
+use std::collections::VecDeque;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Msg {
-    // UI/User input
-    // UiInput(UiEvent),
-
     // Cross term Events
     FocusGained,
     FocusLost,
@@ -14,18 +13,11 @@ pub enum Msg {
     Mouse(MouseEvent),
     Paste(String),
     Resize(u16, u16),
-    // OtherCrosstermEvent(crossterm::event::Event),
     Init,
     Exit,
     Error(String),
     Tick,
-    /// 请注意，render和tick是不同的
-    Render,
-    // 更推荐使用Key(KeyEvent)，因为其包含了modifier ctrl的信息
-    // Input(KeyCode),
-    /// Now, call `read_dir()` !
     FileChanged,
-    // Exit,
 
     // File system watcher -> high-level event
     FileEvent(FileEvent),
@@ -35,6 +27,7 @@ pub enum Msg {
         path: PathBuf,
         data: Vec<u8>,
     },
+    DirLoaded(PathBuf, VecDeque<FileItem>),
     TaskState(TaskState),
 }
 

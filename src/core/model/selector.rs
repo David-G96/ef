@@ -3,18 +3,20 @@ use std::{collections::VecDeque, env, path::PathBuf};
 use crate::core::file_ops::FileOperator;
 use crate::core::{
     cmd::Cmd,
-    model::component::{Cursor, FileItem, Focus, History, ScrollList},
+    model::component::{Cursor, FileItem, History, ListType, ScrollList},
     msg::Msg,
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::macros::constraints;
+use ratatui::style::{self, Style};
 use ratatui::{
-    layout::{Constraint, Layout},
+    layout::Layout,
     style::Stylize,
     text::Line,
     widgets::{Block, List, StatefulWidget, Widget as _},
 };
 
-use color_eyre::{Result as Res, eyre::Ok};
+use color_eyre::Result as Res;
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -22,9 +24,9 @@ pub enum SelectOperation {
     // 移动操作：记录从哪来、到哪去，以及它在原列表中的原始位置（用于完美还原）
     Move {
         item_id: u64,
-        from_list: Focus,
+        from_list: ListType,
         from_index: usize, // 撤销时放回原位所需
-        to_list: Focus,
+        to_list: ListType,
     },
 }
 
@@ -53,27 +55,27 @@ impl SelectModel {
             left: ScrollList::default(),
             right: ScrollList::default(),
             history: History::default(),
-            cursor: Cursor::new(Focus::Mid),
+            cursor: Cursor::new(ListType::Mid),
         }
     }
 
-    fn get_list_mut(&mut self, list_type: Focus) -> &mut ScrollList {
+    fn get_list_mut(&mut self, list_type: ListType) -> &mut ScrollList {
         match list_type {
-            Focus::Left => &mut self.left,
-            Focus::Mid => &mut self.mid,
-            Focus::Right => &mut self.right,
+            ListType::Left => &mut self.left,
+            ListType::Mid => &mut self.mid,
+            ListType::Right => &mut self.right,
         }
     }
 
-    fn get_list(&self, list_type: Focus) -> &ScrollList {
+    fn get_list(&self, list_type: ListType) -> &ScrollList {
         match list_type {
-            Focus::Left => &self.left,
-            Focus::Mid => &self.mid,
-            Focus::Right => &self.right,
+            ListType::Left => &self.left,
+            ListType::Mid => &self.mid,
+            ListType::Right => &self.right,
         }
     }
 
-    fn move_item(&mut self, from_focus: Focus, to_focus: Focus) -> Option<()> {
+    fn move_item(&mut self, from_focus: ListType, to_focus: ListType) -> Option<()> {
         let from_list = self.get_list_mut(from_focus);
         let from_index = from_list.state.selected()?;
         if from_list.items.is_empty() {
@@ -142,20 +144,33 @@ impl SelectModel {
         Some(())
     }
 
-    fn render_lines(&self, list_type: Focus) -> Vec<Line<'static>> {
-        let list = self.get_list(list_type);
-        list.items
+    fn as_lines(scroll_list: &ScrollList, is_focus: bool) -> Vec<Line<'static>> {
+        scroll_list
+            .items
             .iter()
             .enumerate()
             .map(|(i, item)| {
                 let mut line = item.as_line();
-                if self.cursor.focus == list_type && list.state.selected() == Some(i) {
+                if is_focus && scroll_list.state.selected() == Some(i) {
                     line = line.reversed();
                 }
                 line
             })
             .collect::<Vec<Line>>()
     }
+
+    fn as_list(scroll_list: &ScrollList, is_focus: bool, title: &'static str) -> List<'static> {
+        let lines = Self::as_lines(scroll_list, is_focus);
+        let list = List::new(lines);
+        let list_style = if is_focus {
+            Style::default().fg(style::Color::Yellow).bold()
+        } else {
+            style::Style::default()
+        };
+        let block = Block::bordered().title(Line::from(title).centered()).border_style(list_style);
+        list.block(block)
+    }
+
     fn handle_key_event(&mut self, key_event: &KeyEvent) -> Res<Cmd> {
         match key_event.code {
             KeyCode::Left => {
@@ -176,6 +191,18 @@ impl SelectModel {
             }
             KeyCode::Enter => return Ok(Cmd::IntoProcess(self.clone())),
             KeyCode::Tab => {}
+            KeyCode::Char('.') => {
+                return Ok(Cmd::Seq(vec![
+                    Cmd::ToggleShowHidden,
+                    Cmd::LoadDir(self.path.clone()),
+                ]));
+            }
+            KeyCode::Char('g') => {
+                return Ok(Cmd::Seq(vec![
+                    Cmd::ToggleRespectGitIgnore,
+                    Cmd::LoadDir(self.path.clone()),
+                ]));
+            }
             _ => {}
         }
         Ok(Cmd::None)
@@ -197,9 +224,9 @@ impl crate::core::model::Model for SelectModel {
             "<LEFT>".blue().bold(),
             " Move Right ".into(),
             "<RIGHT>".blue().bold(),
-            " Quit ".into(),
             "ctrl + <Z>".into(),
-            "undo".into(),
+            " undo ".into(),
+            " Quit ".into(),
             "<Q> ".blue().bold(),
         ]);
 
@@ -213,64 +240,31 @@ impl crate::core::model::Model for SelectModel {
         let inner_area = block.inner(area);
         block.render(area, buf);
 
-        let columns = Layout::horizontal([
-            Constraint::Percentage(33),
-            Constraint::Percentage(34),
-            Constraint::Percentage(33),
-        ]);
+        let columns = Layout::horizontal(constraints![==33%, == 34%, ==33%]);
         let [left_area, mid_area, right_area] = columns.areas(inner_area);
 
-        // let left_items = self.render_list(Focus::Left);
-        // let left_style = if self.cursor.focus == Focus::Left {
-        //     ratatui::style::Style::default()
-        //         .fg(ratatui::style::Color::Yellow)
-        //         .bold()
-        // } else {
-        //     ratatui::style::Style::default()
-        // };
-        // Paragraph::new(left_items)
-        //     .block(Block::bordered().title("Left").border_style(left_style))
-        //     .render(left_area, buf);
-
-        let left_list = List::new(self.render_lines(Focus::Left));
-        let left_style = if self.cursor.focus == Focus::Left {
-            ratatui::style::Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .bold()
-        } else {
-            ratatui::style::Style::default()
-        };
-        let left_block = Block::bordered().title("Left").border_style(left_style);
+        // left
         StatefulWidget::render(
-            left_list.block(left_block),
+            Self::as_list(&self.left, self.cursor.focus == ListType::Left, "Left"),
             left_area,
             buf,
             &mut self.left.state,
         );
+        // mid - pending
+        StatefulWidget::render(
+            Self::as_list(&self.mid, self.cursor.focus == ListType::Mid, "<== Pending ==>"),
+            mid_area,
+            buf,
+            &mut self.mid.state,
+        );
+        // right
+        StatefulWidget::render(
+            Self::as_list(&self.right, self.cursor.focus == ListType::Right, "Right"),
+            right_area,
+            buf,
+            &mut self.right.state,
+        );
 
-        let mid_items = self.render_lines(Focus::Mid);
-        let mid_style = if self.cursor.focus == Focus::Mid {
-            ratatui::style::Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .bold()
-        } else {
-            ratatui::style::Style::default()
-        };
-        let mid_list =
-            List::new(mid_items).block(Block::bordered().title("Mid").border_style(mid_style));
-        StatefulWidget::render(mid_list, mid_area, buf, &mut self.mid.state);
-
-        let right_items = self.render_lines(Focus::Right);
-        let right_style = if self.cursor.focus == Focus::Right {
-            ratatui::style::Style::default()
-                .fg(ratatui::style::Color::Yellow)
-                .bold()
-        } else {
-            ratatui::style::Style::default()
-        };
-        let right_list = List::new(right_items)
-            .block(Block::bordered().title("Right").border_style(right_style));
-        StatefulWidget::render(right_list, right_area, buf, &mut self.right.state);
         Ok(())
     }
     fn update(&mut self, msg: &Self::Msg, _ctx: &Self::Context) -> Self::Cmd {
@@ -279,6 +273,12 @@ impl crate::core::model::Model for SelectModel {
             Msg::Key(ket_event) => self
                 .handle_key_event(ket_event)
                 .unwrap_or_else(|e| Cmd::Error(e.to_string())),
+            Msg::DirLoaded(path, items) => {
+                if *path == self.path {
+                    self.mid = ScrollList::new(items.clone());
+                }
+                Cmd::None
+            }
             _ => Cmd::None,
         }
     }

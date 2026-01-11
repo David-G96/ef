@@ -62,7 +62,7 @@ impl std::fmt::Display for FileItem {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub enum Focus {
+pub enum ListType {
     /// The middle list, used as pending/register
     #[default]
     Mid,
@@ -70,7 +70,7 @@ pub enum Focus {
     Right,
 }
 
-impl Focus {
+impl ListType {
     pub fn left(self) -> Self {
         match self {
             Self::Mid => Self::Left,
@@ -211,12 +211,12 @@ impl ScrollList {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Cursor {
-    pub focus: Focus,
+    pub focus: ListType,
     pub index: usize,
 }
 
 impl Cursor {
-    pub fn new(focus: Focus) -> Self {
+    pub fn new(focus: ListType) -> Self {
         Self { focus, index: 0 }
     }
 
