@@ -16,7 +16,6 @@ use ignore::WalkBuilder;
 #[derive(Debug, Default)]
 pub struct FileOperator;
 
-
 /// 根据配置获取目录下的文件列表，并封装为 FileItem
 pub fn list_items(path: &Path, respect_gitignore: bool) -> Res<VecDeque<FileItem>> {
     let mut res = VecDeque::new();

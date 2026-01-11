@@ -20,6 +20,12 @@ pub struct Cli {
     /// Do not actually perform any operations
     #[arg(short = 'n', long = "dry-run")]
     pub dry_run: bool,
-    // #[command(subcommand)]
-    // command: Option<Commands>,
+
+    /// Do not print log messages
+    #[arg(short = 'q', long = "quiet")]
+    pub quiet: bool,
+
+    /// Use verbose output
+    #[arg(short = 'v', long = "verbose")]
+    pub verbose: bool,
 }

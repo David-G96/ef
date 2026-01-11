@@ -34,8 +34,8 @@ pub enum InProcess {
     Move(InputBox),
     /// alias 'c' 'cp'
     Copy(InputBox),
-    /// not yet impl
-    Zip,
+    //s not yet impl
+    // Zip,
     /// not yet impl
     Rename,
 }
@@ -278,25 +278,27 @@ impl Model for Processor {
         area: ratatui::layout::Rect,
     ) -> color_eyre::Result<()> {
         let buf = frame.buffer_mut();
+
+        let [main_area, status_area] = Layout::vertical(constraints![>=0, ==1]).areas(area);
+
         let instructions = Line::from(vec![
-            " Delete ".into(),
-            "<D>".blue().bold(),
-            " Trash ".into(),
-            "<T>".blue().bold(),
-            " Organize ".into(),
-            "<O>".blue().bold(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
+            "[D]".bold().blue(),
+            "elete ".into(),
+            "[T]".bold().blue(),
+            "rash ".into(),
+            "[O]".bold().blue(),
+            "rganize ".into(),
         ]);
 
-        
-        let block = Block::bordered().title_bottom(instructions.centered());
+        let status_style = Style::default().bg(ratatui::style::Color::DarkGray);
+        Block::default()
+            .style(status_style)
+            .render(status_area, buf);
 
-        let inner_area = block.inner(area);
-        block.render(area, buf);
+        instructions.render(status_area, buf);
 
         let columns = Layout::horizontal(constraints![==50%, ==50%]);
-        let [left_area, right_area] = columns.areas(inner_area);
+        let [left_area, right_area] = columns.areas(main_area);
 
         self.render_list_panel(
             &self.left,
@@ -320,14 +322,14 @@ impl Model for Processor {
             if self.focus_right {
                 frame.set_cursor_position(Position::new(
                     right_area.x + "right - ".len() as u16 + self.right_proc.len() as u16 + 1,
-                    1,
+                    0,
                 ));
             }
             // left list
             else {
                 frame.set_cursor_position(Position::new(
                     left_area.x + "left - ".len() as u16 + self.left_proc.len() as u16 + 1,
-                    1,
+                    0,
                 ));
             }
         }
