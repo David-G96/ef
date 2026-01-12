@@ -48,7 +48,7 @@ pub struct SelectModel {
 
 impl SelectModel {
     pub fn new(current_path: PathBuf, show_hidden: bool, respect_gitignore: bool) -> Res<Self> {
-        let res = file_ops::list_items(&current_path, respect_gitignore)?;
+        let res = file_ops::list_items(&current_path, show_hidden, respect_gitignore)?;
         let mut model = Self::new_with(current_path, res);
         model.show_hidden = show_hidden;
         model.respect_gitignore = respect_gitignore;

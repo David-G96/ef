@@ -1,6 +1,5 @@
 //! Reusable common components for models
-//!
-//!
+
 pub mod fps;
 pub mod input;
 pub mod popup;
@@ -209,42 +208,14 @@ impl ScrollList {
     }
 }
 
+/// 这个玩意还有啥用？其实没有，因为ListState已经取代了index的作用了。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Cursor {
     pub focus: ListType,
-    pub index: usize,
 }
 
 impl Cursor {
     pub fn new(focus: ListType) -> Self {
-        Self { focus, index: 0 }
+        Self { focus }
     }
-
-    // pub fn shift_down(self) -> Self {
-    //     Self {
-    //         index: self.index.saturating_add(1),
-    //         ..self
-    //     }
-    // }
-
-    // pub fn shift_up(self) -> Self {
-    //     Self {
-    //         index: self.index.saturating_sub(1),
-    //         ..self
-    //     }
-    // }
-
-    // pub fn move_left(self) -> Self {
-    //     Self {
-    //         focus: self.focus.left(),
-    //         ..self
-    //     }
-    // }
-
-    // pub fn move_right(self) -> Self {
-    //     Self {
-    //         focus: self.focus.right(),
-    //         ..self
-    //     }
-    // }
 }

@@ -1,6 +1,7 @@
 use crate::core::model::component::FileItem;
 use std::collections::{HashSet, VecDeque};
 use std::fs;
+use std::sync::Arc;
 
 use std::io;
 use std::path::Path;
@@ -12,15 +13,15 @@ use color_eyre::{
 
 use ignore::WalkBuilder;
 
-// /// FileOperator handle
-// #[derive(Debug, Default)]
-// pub struct FileOperator;
-
 /// 根据配置获取目录下的文件列表，并封装为 FileItem
-pub fn list_items(path: &Path, respect_gitignore: bool) -> Res<VecDeque<FileItem>> {
+pub fn list_items(
+    path: &Path,
+    show_hidden: bool,
+    respect_gitignore: bool,
+) -> Res<VecDeque<FileItem>> {
     let mut res = VecDeque::new();
     let walker = WalkBuilder::new(path)
-        .hidden(false)
+        .hidden(!show_hidden)
         .git_ignore(respect_gitignore)
         .max_depth(Some(1))
         .build();
@@ -46,6 +47,7 @@ pub fn list_items(path: &Path, respect_gitignore: bool) -> Res<VecDeque<FileItem
 }
 
 /// 获取指定目录下的文件列表
+#[deprecated = "use list_items instead"]
 pub fn get_filtered_files(path: &Path, respect_gitignore: bool) -> Vec<String> {
     let mut files = Vec::new();
     let walker = WalkBuilder::new(path)
@@ -70,11 +72,7 @@ pub fn get_filtered_files(path: &Path, respect_gitignore: bool) -> Vec<String> {
     files
 }
 
-pub fn organize<P: AsRef<Path>>(
-    items: &[P],
-    target_dir_path: &Path,
-    respect_gitignore: bool,
-) -> Res<()> {
+pub fn organize<P: AsRef<Path>>(items: &[P], target_dir_path: &Path) -> Res<()> {
     let dest_dir = target_dir_path;
     if dest_dir.exists() {
         bail!(
@@ -110,7 +108,7 @@ pub fn organize<P: AsRef<Path>>(
         let file_name = path.file_name().unwrap();
         let dst = dest_dir.join(file_name);
 
-        move_item(path, &dst, respect_gitignore).with_context(|| {
+        move_item(path, &dst).with_context(|| {
             format!("Failed to move '{}' to '{}'", path.display(), dst.display())
         })?;
     }
@@ -119,9 +117,10 @@ pub fn organize<P: AsRef<Path>>(
 
 pub fn copy<P: AsRef<Path>>(
     items: &[P],
-    target_dir_path: &Path,
-    respect_gitignore: bool,
+    target_dir_path: P,
+    progress_cb: Option<Arc<dyn Fn(f32) + Send + Sync>>,
 ) -> Res<()> {
+    let target_dir_path = target_dir_path.as_ref();
     if target_dir_path.exists() {
         bail!(
             "Destination directory '{}' already exists.",
@@ -138,6 +137,29 @@ pub fn copy<P: AsRef<Path>>(
     fs::create_dir_all(target_dir_path)
         .with_context(|| format!("Failed to create directory '{}'", target_dir_path.display()))?;
 
+    // Calculate total files for progress reporting
+    let mut total_files = 0;
+    if progress_cb.is_some() {
+        for item in items {
+            let path = item.as_ref();
+            if path.is_dir() {
+                total_files += count_files(path);
+            } else {
+                total_files += 1;
+            }
+        }
+    }
+
+    let mut current_files = 0;
+    let mut on_progress = || {
+        current_files += 1;
+        if let Some(cb) = &progress_cb {
+            if total_files > 0 {
+                cb(current_files as f32 / total_files as f32);
+            }
+        }
+    };
+
     for item in items {
         let src = item.as_ref();
         let file_name = src.file_name().ok_or_else(|| {
@@ -146,7 +168,7 @@ pub fn copy<P: AsRef<Path>>(
         let dst = target_dir_path.join(file_name);
 
         if src.is_dir() {
-            copy_dir_all(src, &dst, respect_gitignore)?;
+            copy_dir_all(src, &dst, &mut on_progress)?;
         } else {
             fs::copy(src, &dst).with_context(|| {
                 format!(
@@ -155,17 +177,18 @@ pub fn copy<P: AsRef<Path>>(
                     dst.display()
                 )
             })?;
+            on_progress();
         }
     }
     Ok(())
 }
 
 /// 增强版的移动函数，支持跨分区移动
-fn move_item(src: &Path, dst: &Path, respect_gitignore: bool) -> Res<()> {
+fn move_item(src: &Path, dst: &Path) -> Res<()> {
     if let Err(e) = fs::rename(src, dst) {
         if e.raw_os_error() == Some(18) || e.kind() == io::ErrorKind::CrossesDevices {
             if src.is_dir() {
-                copy_dir_all(src, dst, respect_gitignore)?;
+                copy_dir_all(src, dst, &mut || {})?;
                 fs::remove_dir_all(src)?;
             } else {
                 fs::copy(src, dst)?;
@@ -178,10 +201,13 @@ fn move_item(src: &Path, dst: &Path, respect_gitignore: bool) -> Res<()> {
     Ok(())
 }
 
-fn copy_dir_all(src: &Path, dst: &Path, respect_gitignore: bool) -> Res<()> {
+fn copy_dir_all<F>(src: &Path, dst: &Path, on_copy: &mut F) -> Res<()>
+where
+    F: FnMut(),
+{
     let walker = WalkBuilder::new(src)
         .hidden(false)
-        .git_ignore(respect_gitignore)
+        .git_ignore(false)
         .build();
 
     for result in walker {
@@ -198,11 +224,21 @@ fn copy_dir_all(src: &Path, dst: &Path, respect_gitignore: bool) -> Res<()> {
             fs::create_dir_all(&target_path)?;
         } else if file_type.is_file() {
             fs::copy(path, &target_path)?;
+            on_copy();
         }
     }
     Ok(())
 }
-// }
+
+fn count_files(path: &Path) -> usize {
+    WalkBuilder::new(path)
+        .hidden(false)
+        .git_ignore(false)
+        .build()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
+        .count()
+}
 
 /// 静态工具函数（不依赖过滤规则）
 pub fn delete<P: AsRef<Path>>(items: &[P]) -> Res<()> {

@@ -1,7 +1,4 @@
-use std::{
-    env::current_dir,
-    fmt::Debug,
-};
+use std::{env::current_dir, fmt::Debug, sync::Arc};
 
 use crate::core::{
     cmd::Cmd,
@@ -77,9 +74,9 @@ impl Debug for EpochGuard {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Runner {
-    model_manager: EpochGuard,
+    guard_model: EpochGuard,
     servicer: Servicer,
     context: Context,
     should_exit: bool,
@@ -88,16 +85,27 @@ pub struct Runner {
 
 impl Runner {
     pub fn new(config: crate::core::config::Config) -> Self {
+        let tick_rate = config.tick_rate;
         Self {
             dry_run: true,
             context: Context { config },
-            ..Default::default()
+            servicer: Servicer::new(tick_rate, 8),
+            guard_model: Default::default(),
+            should_exit: false,
         }
     }
 
     pub fn with_dry_run(mut self, dry_run: bool) -> Self {
         self.dry_run = dry_run;
         self
+    }
+
+    fn submit_task<F>(&mut self, task_fn: F, id: u64)
+    where
+        F: FnOnce(Arc<dyn Fn(f32) + Send + Sync>) -> Result<(), String> + Send + 'static,
+    {
+        let epoch = self.guard_model.curr_epoch;
+        self.servicer.task_manager.submit(id, epoch, task_fn);
     }
 
     pub async fn run(&mut self, term: &mut DefaultTerminal) -> Res<()> {
@@ -107,30 +115,29 @@ impl Runner {
             .default_path
             .clone()
             .map_or_else(current_dir, Ok)?;
-        self.model_manager.change_model(Box::new(SelectModel::new(
+
+        // init model
+        self.guard_model.change_model(Box::new(SelectModel::new(
             init_path.clone(),
             self.context.config.show_hidden,
             self.context.config.respect_gitignore,
         )?));
-        // 默认不开启watcher
-        self.servicer = Servicer::new()
-            .with_listener()
-            .with_watcher(init_path.clone())
-            .with_ticker(4.0)
-            .with_task_manager(8);
+
+        // init service
+        self.servicer.set_watcher(init_path);
 
         // 1. 初始渲染：确保程序启动时用户能看到界面
         self.draw(term)?;
 
         // 2. 阻塞式事件循环：只有收到消息（信号）时才继续执行
         while let Some(msg) = self.servicer.recv().await {
-            let mut should_redraw = self.handle_msg(msg);
+            let mut should_redraw = true;
+            self.handle_msg(msg);
 
             // 3. 排空当前队列中所有积压的消息，避免连续多次重绘
             while let Result::Ok(msg) = self.servicer.try_recv() {
-                if self.handle_msg(msg) {
-                    should_redraw = true;
-                }
+                _ = self.handle_msg(msg);
+                should_redraw = true;
             }
 
             if self.should_exit {
@@ -144,22 +151,17 @@ impl Runner {
         }
 
         ratatui::restore();
+
         Ok(())
     }
 
+    /// 理论上来说应该按需重绘，但是无所谓了
     fn handle_msg(&mut self, msg: Msg) -> bool {
-        // 基础逻辑：Tick 默认不触发重绘，其他事件触发重绘
-        let should_redraw = match msg {
-            Msg::Tick => true,
-            _ => true,
-        };
-
         let envelope = self
-            .model_manager
+            .guard_model
             .update(EpochEnvelope::new(msg), &self.context);
         self.handle_cmd(envelope);
-
-        should_redraw
+        true
     }
 
     fn handle_cmd(&mut self, envelope: EpochEnvelope<Cmd>) {
@@ -171,55 +173,91 @@ impl Runner {
                 tracing::error!("{:?}", e);
             }
             Cmd::IntoProcess(m) => {
-                self.model_manager.change_model(Box::new(Processor::new(m)));
+                self.guard_model.change_model(Box::new(Processor::new(m)));
             }
             Cmd::Organize(items, target_path) => {
                 tracing::info!("organize:{:?}->{:?}", &items, &target_path);
-                if !self.dry_run
-                    && let Err(e) = file_ops::organize(
-                        &items,
-                        &target_path,
-                        self.context.config.respect_gitignore,
-                    )
-                {
-                    tracing::error!("Organize failed: {:?}", e);
+                if !self.dry_run {
+                    if let Err(e) = file_ops::organize(&items, &target_path) {
+                        tracing::error!("Organize failed: {:?}", e);
+                    }
                 }
             }
             Cmd::Copy(items, target_path) => {
                 tracing::info!("copy:{:?}->{:?}", &items, &target_path);
-                if !self.dry_run
-                    && let Err(e) =
-                        file_ops::copy(&items, &target_path, self.context.config.respect_gitignore)
-                {
-                    tracing::error!("Copy failed: {:?}", e);
+                if !self.dry_run {
+                    if let Err(e) = file_ops::copy(&items, target_path, None) {
+                        tracing::error!("Copy failed: {:?}", e);
+                    }
                 }
             }
             Cmd::Move(items, target_path) => {
                 tracing::info!("move:{:?}->{:?}", &items, &target_path);
-                if !self.dry_run
-                    && let Err(e) = file_ops::organize(
-                        &items,
-                        &target_path,
-                        self.context.config.respect_gitignore,
-                    )
-                {
-                    tracing::error!("Move failed: {:?}", e);
+                if !self.dry_run {
+                    if let Err(e) = file_ops::organize(&items, &target_path) {
+                        tracing::error!("Move failed: {:?}", e);
+                    }
                 }
             }
             Cmd::Delete(items) => {
                 tracing::info!("delete:{:?}", &items);
-                if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::delete(&items)
-                {
-                    tracing::error!("Delete failed: {:?}", e);
+                if !self.dry_run {
+                    if let Err(e) = crate::core::file_ops::delete(&items) {
+                        tracing::error!("Delete failed: {:?}", e);
+                    }
                 }
             }
             Cmd::Trash(items) => {
                 tracing::info!("trash:{:?}", &items);
-                if !self.dry_run
-                    && let Err(e) = crate::core::file_ops::trash(&items)
-                {
-                    tracing::error!("Trash failed: {:?}", e);
+                if !self.dry_run {
+                    if let Err(e) = crate::core::file_ops::trash(&items) {
+                        tracing::error!("Trash failed: {:?}", e);
+                    }
+                }
+            }
+            Cmd::AsyncDelete(id, items) => {
+                tracing::info!("async delete:{:?}", &items);
+                if !self.dry_run {
+                    self.submit_task(
+                        move |_| crate::core::file_ops::delete(&items).map_err(|e| e.to_string()),
+                        id,
+                    );
+                }
+            }
+            Cmd::AsyncOrganize(id, items, target_path) => {
+                tracing::info!("async organize:{:?}->{:?}", &items, &target_path);
+                if !self.dry_run {
+                    self.submit_task(
+                        move |_| file_ops::organize(&items, &target_path).map_err(|e| e.to_string()),
+                        id,
+                    );
+                }
+            }
+            Cmd::AsyncCopy(id, items, target_path) => {
+                tracing::info!("async copy:{:?}->{:?}", &items, &target_path);
+                if !self.dry_run {
+                    self.submit_task(
+                        move |reporter| file_ops::copy(&items, target_path, Some(reporter)).map_err(|e| e.to_string()),
+                        id,
+                    );
+                }
+            }
+            Cmd::AsyncMove(id, items, target_path) => {
+                tracing::info!("async move:{:?}->{:?}", &items, &target_path);
+                if !self.dry_run {
+                    self.submit_task(
+                        move |_| file_ops::organize(&items, &target_path).map_err(|e| e.to_string()),
+                        id,
+                    );
+                }
+            }
+            Cmd::AsyncTrash(id, items) => {
+                tracing::info!("async trash:{:?}", &items);
+                if !self.dry_run {
+                    self.submit_task(
+                        move |_| crate::core::file_ops::trash(&items).map_err(|e| e.to_string()),
+                        id,
+                    );
                 }
             }
             Cmd::Seq(cmds) => {
@@ -244,23 +282,28 @@ impl Runner {
                 );
             }
             Cmd::LoadDir(path) => {
-                match file_ops::list_items(&path, self.context.config.respect_gitignore) {
+                match file_ops::list_items(
+                    &path,
+                    self.context.config.show_hidden,
+                    self.context.config.respect_gitignore,
+                ) {
                     Ok(items) => {
                         let msg = Msg::DirLoaded(path, items);
                         let envelope = self
-                            .model_manager
+                            .guard_model
                             .update(EpochEnvelope::new(msg), &self.context);
                         self.handle_cmd(envelope);
                     }
                     Err(e) => tracing::error!("Failed to load dir: {:?}", e),
                 }
             }
+
             _ => {}
         }
     }
 
     fn draw(&mut self, term: &mut DefaultTerminal) -> Res<()> {
-        term.draw(|f| self.model_manager.render(f, f.area()))?;
+        term.draw(|f| self.guard_model.render(f, f.area()))?;
         Ok(())
     }
 }

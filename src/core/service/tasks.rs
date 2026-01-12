@@ -24,9 +24,9 @@ impl TaskManager {
     }
 
     // 提交任务的方法
-    pub async fn submit<F>(&self, id: u64, epoch: u32, task_fn: F)
+    pub fn submit<F>(&self, id: u64, epoch: u32, task_fn: F)
     where
-        F: FnOnce() -> Result<(), String> + Send + 'static,
+        F: FnOnce(Arc<dyn Fn(f32) + Send + Sync>) -> Result<(), String> + Send + 'static,
     {
         // 初始化状态
         self.registry.insert(id, TaskStatus::Pending);
@@ -34,6 +34,16 @@ impl TaskManager {
         let sem_clone = Arc::clone(&self.semaphore);
         let registry_clone = Arc::clone(&self.registry);
         let tx_clone = self.status_tx.clone();
+
+        // 创建进度汇报闭包
+        let registry_progress = Arc::clone(&self.registry);
+        let tx_progress = self.status_tx.clone();
+        let reporter = Arc::new(move |progress: f32| {
+            let status = TaskStatus::Processing(progress);
+            registry_progress.insert(id, status.clone());
+            // 在 blocking 线程中需使用 blocking_send
+            let _ = tx_progress.blocking_send(Msg::TaskState(TaskState::new(id, epoch, status)));
+        });
 
         // 开启异步包装器
         tokio::spawn(async move {
@@ -51,7 +61,7 @@ impl TaskManager {
                 .await;
 
             // 在阻塞线程池中执行重型任务
-            let result = tokio::task::spawn_blocking(task_fn).await;
+            let result = tokio::task::spawn_blocking(move || task_fn(reporter)).await;
 
             // 处理最终结果
             let final_status = match result {

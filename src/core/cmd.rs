@@ -7,7 +7,6 @@ pub enum Cmd {
     #[default]
     None,
     Error(String),
-    // QueryFileType(PathBuf),
     /// Sequential commands
     Seq(Vec<Self>),
     /// Not sequential commands
@@ -19,6 +18,15 @@ pub enum Cmd {
         Option<ScrollList>,
         Option<ScrollList>,
     ),
+    // /// Requires a command to be performed as a async task.
+    // /// The first argument is a u64 id, which should be internally managed by the model.
+    // / The second argument should be the async task to perform.
+    // AsyncTask(u64, Box<Self>),
+    AsyncOrganize(u64,Vec<PathBuf>, PathBuf),
+    AsyncDelete(u64,Vec<PathBuf>),
+    AsyncCopy(u64,Vec<PathBuf>, PathBuf),
+    AsyncTrash(u64, Vec<PathBuf>),
+    AsyncMove(u64, Vec<PathBuf>, PathBuf),
     Organize(Vec<PathBuf>, PathBuf),
     Delete(Vec<PathBuf>),
     Copy(Vec<PathBuf>, PathBuf),
