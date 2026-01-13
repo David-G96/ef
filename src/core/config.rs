@@ -91,7 +91,10 @@ mod test {
     #[test]
     fn test_config_parse() {
         let config_file = r#"frame_rate = 60
-        tick_rate = 4"#;
+        tick_rate = 4
+        show_hidden = false
+        respect_gitignore = true
+        "#;
 
         let config: Config = toml::from_str(config_file).expect("failed to parse config content");
         let expected = Config::new();
@@ -103,7 +106,7 @@ mod test {
     fn test_config_parse_full() {
         let config_str = r#"frame_rate = 10.0
 tick_rate = 4.0
-default_path = "/Users/davidgao/Desktop/final/"
+default_path = "/Users/abc/Desktop"
 show_hidden = true
 respect_gitignore = true"#;
 
@@ -111,7 +114,7 @@ respect_gitignore = true"#;
         let expected = Config {
             frame_rate: 10.0,
             tick_rate: 4.0,
-            default_path: PathBuf::from("/Users/davidgao/Desktop/final/").into(),
+            default_path: PathBuf::from("/Users/abc/Desktop/").into(),
             show_hidden: true,
             respect_gitignore: true,
         };
@@ -126,7 +129,10 @@ respect_gitignore = true"#;
 
         // 写入测试内容
         let content = r#"frame_rate = 120.0
-        tick_rate = 10.0"#;
+        tick_rate = 10.0
+        show_hidden = false
+        respect_gitignore = true
+        "#;
         std::fs::write(path, content)?;
 
         // 测试解析逻辑

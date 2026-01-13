@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use ratatui::{
     style::{self, Style, Stylize as _},
     text::Line,
-    widgets::{Block, ListState, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, ListState, Paragraph, Widget},
 };
 
 use std::path::PathBuf;
@@ -17,8 +17,7 @@ use std::path::PathBuf;
 pub struct FileItem {
     pub id: u64,
     pub path: PathBuf,
-    /// dir后面加斜杠以示区分，并使用蓝色
-    /// e.g. `lib/
+    /// dir后面加斜杠以示区分，并使用蓝色 e.g. `lib/
     pub display_name: String,
     pub is_dir: bool,
 }
@@ -38,25 +37,19 @@ impl Widget for &FileItem {
     where
         Self: Sized,
     {
-        if self.is_dir {
-            Line::from(self.display_name.clone().blue())
-        } else {
-            Line::from(self.display_name.clone())
-        }
-        .render(area, buf);
+        self.as_line().render(area, buf)
     }
 }
 
 impl std::fmt::Display for FileItem {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
+        f.write_fmt(core::format_args!(
             "File<{}>: path={}, display_name={}, is_dir={}",
             self.id,
             self.path.to_string_lossy(),
             self.display_name,
             self.is_dir
-        )
+        ))
     }
 }
 

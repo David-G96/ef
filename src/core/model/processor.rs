@@ -35,7 +35,7 @@ pub enum InProcess {
     /// alias 'c' 'cp'
     Copy(InputBox),
     //s not yet impl
-    // Zip,
+    Zip,
     /// not yet impl
     Rename,
 }
@@ -43,7 +43,7 @@ pub enum InProcess {
 impl InProcess {
     pub fn len(&self) -> usize {
         let mut counter = ByteCounter::new();
-        write!(&mut counter, "{}", self).expect("this is will be triggered");
+        write!(&mut counter, "{}", self).expect("internal logic error");
         counter.count
     }
 
