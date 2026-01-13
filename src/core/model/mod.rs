@@ -2,6 +2,7 @@
 pub mod component;
 pub mod processor;
 pub mod selector;
+pub mod home;
 
 pub trait Model {
     type Cmd;

@@ -5,7 +5,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct InputBox {
     input: String,
     char_index: usize,
@@ -45,7 +45,8 @@ impl InputBox {
             let byte_idx = self.byte_index();
             let prev_byte_idx = self
                 .input
-                .char_indices().rfind(|(i, _)| *i < byte_idx)
+                .char_indices()
+                .rfind(|(i, _)| *i < byte_idx)
                 .map(|(i, _)| i)
                 .unwrap_or(0);
 
