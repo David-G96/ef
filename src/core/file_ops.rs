@@ -153,11 +153,10 @@ pub fn copy<P: AsRef<Path>>(
     let mut current_files = 0;
     let mut on_progress = || {
         current_files += 1;
-        if let Some(cb) = &progress_cb {
-            if total_files > 0 {
+        if let Some(cb) = &progress_cb
+            && total_files > 0 {
                 cb(current_files as f32 / total_files as f32);
             }
-        }
     };
 
     for item in items {

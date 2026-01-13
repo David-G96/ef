@@ -177,43 +177,38 @@ impl Runner {
             }
             Cmd::Organize(items, target_path) => {
                 tracing::info!("organize:{:?}->{:?}", &items, &target_path);
-                if !self.dry_run {
-                    if let Err(e) = file_ops::organize(&items, &target_path) {
+                if !self.dry_run
+                    && let Err(e) = file_ops::organize(&items, &target_path) {
                         tracing::error!("Organize failed: {:?}", e);
                     }
-                }
             }
             Cmd::Copy(items, target_path) => {
                 tracing::info!("copy:{:?}->{:?}", &items, &target_path);
-                if !self.dry_run {
-                    if let Err(e) = file_ops::copy(&items, target_path, None) {
+                if !self.dry_run
+                    && let Err(e) = file_ops::copy(&items, target_path, None) {
                         tracing::error!("Copy failed: {:?}", e);
                     }
-                }
             }
             Cmd::Move(items, target_path) => {
                 tracing::info!("move:{:?}->{:?}", &items, &target_path);
-                if !self.dry_run {
-                    if let Err(e) = file_ops::organize(&items, &target_path) {
+                if !self.dry_run
+                    && let Err(e) = file_ops::organize(&items, &target_path) {
                         tracing::error!("Move failed: {:?}", e);
                     }
-                }
             }
             Cmd::Delete(items) => {
                 tracing::info!("delete:{:?}", &items);
-                if !self.dry_run {
-                    if let Err(e) = crate::core::file_ops::delete(&items) {
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::delete(&items) {
                         tracing::error!("Delete failed: {:?}", e);
                     }
-                }
             }
             Cmd::Trash(items) => {
                 tracing::info!("trash:{:?}", &items);
-                if !self.dry_run {
-                    if let Err(e) = crate::core::file_ops::trash(&items) {
+                if !self.dry_run
+                    && let Err(e) = crate::core::file_ops::trash(&items) {
                         tracing::error!("Trash failed: {:?}", e);
                     }
-                }
             }
             Cmd::AsyncDelete(id, items) => {
                 tracing::info!("async delete:{:?}", &items);
