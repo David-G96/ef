@@ -12,8 +12,9 @@ use crate::core::{
     msg::Msg,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 enum HomeMode {
+    #[default]
     Sort,
     Proc,
     Preview,
@@ -58,6 +59,8 @@ pub struct HomeModel {
     right: ScrollList,
     right_proc: Option<InProcess>,
 
+    mode: HomeMode,
+
     focus: ListType,
     show_hidden: bool,
     respect_gitignore: bool,
@@ -76,18 +79,28 @@ impl HomeModel {
             mid: Default::default(),
             right: Default::default(),
             right_proc: None,
+            mode: HomeMode::default(),
             focus: Default::default(),
             history: Default::default(),
         }
     }
 
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Cmd {
-        match key_event {
+        use crossterm::event::KeyCode::*;
+        match key_event.code {
+            Esc => match self.mode {
+                HomeMode::Proc => self.mode = HomeMode::Sort,
+                _ => {}
+            },
+            
+
             _ => {}
         }
 
         Cmd::None
     }
+
+
 }
 
 impl Model for HomeModel {
@@ -97,12 +110,16 @@ impl Model for HomeModel {
 
     fn draw(
         &mut self,
-        frame: &mut ratatui::Frame,
-        area: ratatui::layout::Rect,
+        _frame: &mut ratatui::Frame,
+        _area: ratatui::layout::Rect,
     ) -> color_eyre::Result<()> {
         todo!()
     }
-    fn update(&mut self, msg: &Self::Msg, ctx: &Self::Context) -> Self::Cmd {
-        todo!()
+    fn update(&mut self, msg: &Self::Msg, _ctx: &Self::Context) -> Self::Cmd {
+        match msg {
+            Msg::Exit => Cmd::Exit,
+            Msg::Key(key_event) => self.handle_key_event(*key_event),
+            _ => Cmd::None,
+        }
     }
 }

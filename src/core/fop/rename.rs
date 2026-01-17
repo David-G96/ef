@@ -1,7 +1,28 @@
+use std::str::FromStr;
+
 use color_eyre::Result as Res;
-use heck::ToPascalCase;
 use serde::{Deserialize, Serialize};
 
+/// siple rename rules
+/// # Usage
+/// * Replace: Simply replace string old to string new
+/// * SetCase: Change the original case type.
+/// * AddPrefix: Add a prefix.
+/// * AddSuffix: Add a suffix.
+/// * RegexReplace: Use regex to replace the original string.
+/// * Pipe: Perform the rules one by one.
+/// # Example
+/// ```
+/// Replace "a" "b" |> AddPrefix "pre-"
+/// ```
+/// will be parsed as 
+/// ``` Rust
+/// Pipe(vec![Replace("a", "b"), AddPrefix("pre-")])
+/// ```
+/// and will change
+/// ```
+/// note.txt, file
+/// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum RenameRule {
     /// simply replace string `old` to `new`
@@ -13,6 +34,7 @@ pub enum RenameRule {
     SetCase(CaseType), // 大小写转换
     AddPrefix(String),
     AddSuffix(String),
+    #[deprecated = "this should not be called."]
     Numbering {
         start: u32,
         pad: usize,
@@ -22,6 +44,13 @@ pub enum RenameRule {
         replacement: String,
     },
     Pipe(Vec<Self>),
+}
+
+impl FromStr for RenameRule {
+    type Err = String;
+    fn from_str(_s: &str) -> Result<Self, Self::Err> {
+        unimplemented!()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]

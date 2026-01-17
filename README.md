@@ -1,6 +1,7 @@
 # ef
 
 A simple file item sorter.
+Note that `ef` is still under active development.
 
 ## Demo
 

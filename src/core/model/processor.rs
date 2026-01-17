@@ -37,7 +37,7 @@ pub enum InProcess {
     //s not yet impl
     Zip,
     /// not yet impl
-    Rename,
+    Rename(InputBox),
 }
 
 impl InProcess {
@@ -164,6 +164,10 @@ impl Processor {
                             self.is_editing = false;
                             *self.curr_proc_mut() = InProcess::None;
                         }
+                        'r' => {
+                            self.is_editing = true;
+                            *self.curr_proc_mut() = InProcess::Rename(Default::default());
+                        }
                         _ => {
                             self.is_editing = false;
                         }
@@ -288,6 +292,8 @@ impl Model for Processor {
             "rash ".into(),
             "[O]".bold().blue(),
             "rganize ".into(),
+            "[C]".bold().blue(),
+            "opy".into(),
         ]);
 
         let status_style = Style::default().bg(ratatui::style::Color::DarkGray);
