@@ -226,6 +226,9 @@ impl SelectModel {
                     Cmd::LoadDir(self.path.clone()),
                 ]));
             }
+            KeyCode::Char(':') => {
+                
+            }
             _ => {}
         }
         Ok(Cmd::None)

@@ -53,3 +53,4 @@ fn get_log_dir(app_name: &str) -> std::path::PathBuf {
     // 备选方案：如果获取不到系统路径，退回到当前目录的隐藏文件夹
     std::path::PathBuf::from(".logs")
 }
+
